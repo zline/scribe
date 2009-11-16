@@ -21,6 +21,8 @@
 // @author Avinash Lakshman
 // @author Anthony Giardullo
 
+#include <signal.h>
+
 #include "common.h"
 #include "scribe_server.h"
 
@@ -42,6 +44,33 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000
 #define DEFAULT_SERVER_THREADS     1
+
+static int pending_signal = 0;
+
+static void sigalrm(int sig)
+{
+  (void)sig;
+  if(pending_signal != 0)
+    raise(pending_signal);
+}
+
+// Shutdown cleanly and redeliver signal with default handler
+static void terminate(int sig) {
+  pending_signal = sig;
+  signal(sig, SIG_DFL);
+  // This still leaves a mutex race condition, but at least attempts to shut
+  // down cleanly.
+  LOG_OPER("Waiting for stores to shutdown...");
+  g_Handler->shutdown();
+
+  signal(SIGALRM, sigalrm);
+  alarm(6);
+  sleep(5);
+  alarm(0);
+  signal(SIGALRM, SIG_DFL);
+
+  raise(sig);
+}
 
 void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]";
@@ -92,6 +121,10 @@ int main(int argc, char **argv) {
 
     g_Handler = shared_ptr<scribeHandler>(new scribeHandler(port, config_file));
     g_Handler->initialize();
+
+    signal(SIGINT,  terminate);
+    signal(SIGTERM, terminate);
+    signal(SIGHUP,  terminate);
 
     shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
     /* This factory is for binary compatibility. */
