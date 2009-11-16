@@ -640,6 +640,9 @@ shared_ptr<Store> FileStore::copy(const std::string &category) {
 }
 
 bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
+  if (!isOpen()) {
+    openInternal(true, NULL);
+  }
 
   if (!isOpen()) {
     LOG_OPER("[%s] File failed to open FileStore::handleMessages()", categoryHandled.c_str());
