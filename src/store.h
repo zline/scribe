@@ -152,6 +152,7 @@ class FileStoreBase : public Store {
   bool writeCategory;
   bool createSymlink;
   bool writeStats;
+  unsigned long lzoCompressionLevel;
 
   // State
   unsigned long currentSize;

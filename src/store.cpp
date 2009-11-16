@@ -146,6 +146,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     writeCategory(false),
     createSymlink(true),
     writeStats(true),
+    lzoCompressionLevel(0),
     currentSize(0),
     lastRollTime(0),
     eventsWritten(0) {
@@ -218,6 +219,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
 
   configuration->getString("fs_type", fsType);
 
+  configuration->getUnsigned("lzo_compression", lzoCompressionLevel);
   configuration->getUnsigned("max_size", maxSize);
   configuration->getUnsigned("max_write_size", maxWriteSize);
   configuration->getUnsigned("rotate_hour", rollHour);
@@ -239,6 +241,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   createSymlink = base->createSymlink;
   baseSymlinkName = base->baseSymlinkName;
   writeStats = base->writeStats;
+  lzoCompressionLevel = base->lzoCompressionLevel;
 
   /*
    * append the category name to the base file path and change the
@@ -291,18 +294,19 @@ void FileStoreBase::rotateFile(struct tm *timeinfo) {
   openInternal(true, timeinfo);
 }
 
-string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time,
-                                       bool use_full_path) {
+string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time) {
 
   ostringstream filename;
 
-  if (use_full_path) {
-    filename << filePath << '/';
-  }
+  filename << filePath << '/';
   filename << makeBaseFilename(creation_time);
   filename << '_' << setw(5) << setfill('0') << suffix;
 
-  return filename.str();
+  string fullFilename = filename.str();
+  if(lzoCompressionLevel > 0)
+    fullFilename += ".lzo";
+
+  return fullFilename;
 }
 
 string FileStoreBase::makeBaseSymlink() {
@@ -381,15 +385,31 @@ int FileStoreBase::findOldestFile(const string& base_filename) {
 
 int FileStoreBase::getFileSuffix(const string& filename, const string& base_filename) {
   int suffix = -1;
+
+  string mybase;
   string::size_type suffix_pos = filename.rfind('_');
-
-  bool retVal = (0 == filename.substr(0, suffix_pos).compare(base_filename));
-
+  string::size_type slash;
+  
+  if ((slash = base_filename.find_last_of("/")) != 0) {
+    mybase  = base_filename.substr(slash + 1,base_filename.length()-slash);
+  } else {
+    mybase  = base_filename;
+  }
+  
+  bool retVal = (0 == filename.substr(0, suffix_pos).compare(mybase));
+  
   if (string::npos != suffix_pos &&
       filename.length() > suffix_pos &&
       retVal) {
     stringstream stream;
-    stream << filename.substr(suffix_pos + 1);
+    string::size_type lzo_suffix = filename.rfind(".lzo");
+
+    if(lzo_suffix != string::npos) {
+      stream << filename.substr(suffix_pos + 1, filename.length() - lzo_suffix+1);
+    }
+    else
+      stream << filename.substr(suffix_pos + 1);
+
     stream >> suffix;
   }
   return suffix;
@@ -558,6 +578,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       setStatus("file open error");
       return false;
     }
+    writeFile->setShouldLZOCompress(lzoCompressionLevel);
 
     success = writeFile->createDirectory(baseFilePath);
 
