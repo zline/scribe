@@ -10,6 +10,16 @@
 #ifdef USE_SCRIBE_HDFS
 #include "hdfs.h"
 
+#define HAVE_LZO 1
+#ifdef HAVE_LZO
+#define LZO_STREAMING 1
+#endif
+
+#ifdef LZO_STREAMING
+#include "lzo/lzoconf.h"
+#include "lzo/lzo1x.h"
+#endif
+
 class HdfsFile : public FileInterface {
  public:
   HdfsFile(const std::string& name);
@@ -31,12 +41,27 @@ class HdfsFile : public FileInterface {
   bool createDirectory(std::string path);
   bool createSymlink(std::string newpath, std::string oldpath);
 
+#ifdef LZO_STREAMING
+  /* Streaming LZO write support */
+  void setShouldLZOCompress(int compressionLevel);
+  bool LZOStringAppendChar(std::string&str, int x);
+  bool LZOStringAppendInt16(std::string&str, unsigned x);
+  bool LZOStringAppendInt32(std::string&str, lzo_uint x);
+#endif
+
  private:
   char* inputBuffer_;
   unsigned bufferSize_;
   hdfsFS fileSys;
   hdfsFile hfile;
   hdfsFS connectToPath(const char* uri);
+
+#ifdef LZO_STREAMING
+  /* Streaming LZO write support */
+  const std::string LZOCompress(const std::string& data, bool force, bool *success);
+  lzo_uint32 lzo_checksum;
+  std::string LZObacklogBuffer;
+#endif
 
   // disallow copy, assignment, and empty construction
   HdfsFile();

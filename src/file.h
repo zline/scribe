@@ -48,9 +48,11 @@ class FileInterface {
   virtual std::string getFrame(unsigned data_size) {return std::string();};
   virtual bool createDirectory(std::string path) = 0;
   virtual bool createSymlink(std::string oldpath, std::string newpath) = 0;
+  virtual void setShouldLZOCompress(int compressionLevel);
 
  protected:
   bool framed;
+  int LZOCompressionLevel;
   std::string filename;
 
   unsigned unserializeUInt(const char* buffer);
