@@ -255,7 +255,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
 }
 
 bool FileStoreBase::open() {
-  return openInternal(false, NULL);
+  return openInternal(fsType.compare("hdfs") == 0, NULL);
 }
 
 void FileStoreBase::periodicCheck() {
