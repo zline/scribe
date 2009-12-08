@@ -21,6 +21,7 @@
 // @author Alex Moskalyuk
 // @author Avinash Lakshman
 // @author Anthony Giardullo
+// @author Jan Oravec
 
 #ifndef SCRIBE_STORE_H
 #define SCRIBE_STORE_H
@@ -34,7 +35,8 @@
 enum roll_period_t {
   ROLL_NEVER,
   ROLL_HOURLY,
-  ROLL_DAILY
+  ROLL_DAILY,
+  ROLL_OTHER
 };
 
 
@@ -113,7 +115,8 @@ class FileStoreBase : public Store {
   // We need to pass arguments to open when called internally.
   // The external open function just calls this with default args.
   virtual bool openInternal(bool incrementFilename, struct tm* current_time) = 0;
-  virtual void rotateFile(struct tm *timeinfo);
+  virtual void rotateFile(time_t currentTime = 0);
+
 
   // appends information about the current file to a log file in the same directory
   virtual void printStats();
@@ -124,9 +127,9 @@ class FileStoreBase : public Store {
                            unsigned long chunk_size);
 
   // A full filename includes an absolute path and a sequence number suffix.
-  std::string makeBaseFilename(struct tm* creation_time = NULL);
-  std::string makeFullFilename(int suffix, struct tm* creation_time = NULL,
-                              bool use_full_path = true);
+  std::string makeBaseFilename(struct tm* creation_time);
+  std::string makeFullFilename(int suffix, struct tm* creation_time,
+                               bool use_full_path = true);
   std::string makeBaseSymlink();
   std::string makeFullSymlink();
   int  findOldestFile(const std::string& base_filename);
@@ -144,6 +147,7 @@ class FileStoreBase : public Store {
   unsigned long maxSize;
   unsigned long maxWriteSize;
   roll_period_t rollPeriod;
+  time_t rollPeriodLength;
   unsigned long rollHour;
   unsigned long rollMinute;
   std::string fsType;
@@ -157,8 +161,10 @@ class FileStoreBase : public Store {
 
   // State
   unsigned long currentSize;
-  int lastRollTime; // either hour or day, depending on rollPeriod
-  std::string currentFilename; // this isn't used to choose the next file name, we just need it for reporting
+  time_t lastRollTime;         // either hour, day or time since epoch,
+                               // depending on rollPeriod
+  std::string currentFilename; // this isn't used to choose the next file name,
+                               // we just need it for reporting
   unsigned long eventsWritten; // This is how many events this process has
                                // written to the currently open file. It is NOT
                                // necessarily the number of lines in the file

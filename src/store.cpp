@@ -21,6 +21,7 @@
 // @author Alex Moskalyuk
 // @author Avinash Lakshman
 // @author Anthony Giardullo
+// @author Jan Oravec
 
 #include "common.h"
 #include "scribe_server.h"
@@ -138,6 +139,7 @@ FileStoreBase::FileStoreBase(const string& category, const string &type,
     maxSize(DEFAULT_FILESTORE_MAX_SIZE),
     maxWriteSize(DEFAULT_FILESTORE_MAX_WRITE_SIZE),
     rollPeriod(ROLL_NEVER),
+    rollPeriodLength(0),
     rollHour(DEFAULT_FILESTORE_ROLL_HOUR),
     rollMinute(DEFAULT_FILESTORE_ROLL_MINUTE),
     fsType("std"),
@@ -189,8 +191,43 @@ void FileStoreBase::configure(pStoreConf configuration) {
       rollPeriod = ROLL_DAILY;
     } else if (0 == tmp.compare("never")) {
       rollPeriod = ROLL_NEVER;
+    } else {
+      errno = 0;
+      char* endptr;
+      rollPeriod = ROLL_OTHER;
+      rollPeriodLength = strtol(tmp.c_str(), &endptr, 10);
+
+      bool ok = errno == 0 && rollPeriodLength > 0 && endptr != tmp.c_str() &&
+                (*endptr == '\0' || endptr[1] == '\0');
+      switch (*endptr) {
+        case 'w':
+          rollPeriodLength *= 60 * 60 * 24 * 7;
+          break;
+        case 'd':
+          rollPeriodLength *= 60 * 60 * 24;
+          break;
+        case 'h':
+          rollPeriodLength *= 60 * 60;
+          break;
+        case 'm':
+          rollPeriodLength *= 60;
+          break;
+        case 's':
+        case '\0':
+          break;
+        default:
+          ok = false;
+          break;
+      }
+
+      if (!ok) {
+        rollPeriod = ROLL_NEVER;
+        LOG_OPER("[%s] WARNING: Bad config - invalid format of rotate_period,"
+                 " rotations disabled", categoryHandled.c_str());
+      }
     }
   }
+
   if (configuration->getString("write_meta", tmp)) {
     if (0 == tmp.compare("yes")) {
       writeMeta = true;
@@ -244,6 +281,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   maxSize = base->maxSize;
   maxWriteSize = base->maxWriteSize;
   rollPeriod = base->rollPeriod;
+  rollPeriodLength = base->rollPeriodLength;
   rollHour = base->rollHour;
   rollMinute = base->rollMinute;
   fsType = base->fsType;
@@ -275,35 +313,48 @@ bool FileStoreBase::open() {
 
 void FileStoreBase::periodicCheck() {
 
-  time_t rawtime;
-  struct tm *timeinfo;
-  time(&rawtime);
-  timeinfo = localtime(&rawtime);
+  time_t rawtime = time(NULL);
+  struct tm timeinfo;
+  localtime_r(&rawtime, &timeinfo);
 
   // Roll the file if we're over max size, or an hour or day has passed
   bool rotate = ((currentSize > maxSize) && (maxSize != 0));
-  if (!rotate && rollPeriod != ROLL_NEVER) {
-    if (rollPeriod == ROLL_DAILY) {
-      rotate = timeinfo->tm_mday != lastRollTime &&
-               static_cast<uint>(timeinfo->tm_hour) >= rollHour &&
-               static_cast<uint>(timeinfo->tm_min) >= rollMinute;
-    } else {
-      rotate = timeinfo->tm_hour != lastRollTime &&
-               static_cast<uint>(timeinfo->tm_min) >= rollMinute;
+  if (!rotate) {
+    switch (rollPeriod) {
+      case ROLL_DAILY:
+        rotate = timeinfo.tm_mday != lastRollTime &&
+                 static_cast<uint>(timeinfo.tm_hour) >= rollHour &&
+                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        break;
+      case ROLL_HOURLY:
+        rotate = timeinfo.tm_hour != lastRollTime &&
+                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        break;
+      case ROLL_OTHER:
+        rotate = rawtime >= lastRollTime + rollPeriodLength;
+        break;
+      case ROLL_NEVER:
+        break;
     }
   }
+
   if (rotate) {
-    rotateFile(timeinfo);
+    rotateFile(rawtime);
   }
 }
 
-void FileStoreBase::rotateFile(struct tm *timeinfo) {
-  LOG_OPER("[%s] %d:%d rotating file <%s> old size <%lu> max size <%lu>", categoryHandled.c_str(),
-           timeinfo->tm_hour, timeinfo->tm_min, makeBaseFilename(timeinfo).c_str(),
-           currentSize, maxSize);
+void FileStoreBase::rotateFile(time_t currentTime) {
+  struct tm timeinfo;
+
+  currentTime = currentTime > 0 ? currentTime : time(NULL);
+  localtime_r(&currentTime, &timeinfo);
+
+  LOG_OPER("[%s] %d:%d rotating file <%s> old size <%lu> max size <%lu>",
+           categoryHandled.c_str(), timeinfo.tm_hour, timeinfo.tm_min,
+           makeBaseFilename(&timeinfo).c_str(), currentSize, maxSize);
 
   printStats();
-  openInternal(true, timeinfo);
+  openInternal(true, &timeinfo);
 }
 
 string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time) {
@@ -338,13 +389,6 @@ string FileStoreBase::makeFullSymlink() {
 }
 
 string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
-
-  if (!creation_time) {
-    time_t rawtime;
-    time(&rawtime);
-    creation_time = localtime(&rawtime);
-  }
-
   ostringstream filename;
 
   if (rollPeriod != ROLL_NEVER) {
@@ -470,16 +514,16 @@ void FileStoreBase::printStats() {
     return;
   }
 
-  time_t rawtime;
-  time(&rawtime);
-  struct tm *local_time = localtime(&rawtime);
+  time_t rawtime = time(NULL);
+  struct tm timeinfo;
+  localtime_r(&rawtime, &timeinfo);
 
   ostringstream msg;
-  msg << local_time->tm_year + 1900  << '-'
-      << setw(2) << setfill('0') << local_time->tm_mon + 1 << '-'
-      << setw(2) << setfill('0') << local_time->tm_mday << '-'
-      << setw(2) << setfill('0') << local_time->tm_hour << ':'
-      << setw(2) << setfill('0') << local_time->tm_min;
+  msg << timeinfo.tm_year + 1900  << '-'
+      << setw(2) << setfill('0') << timeinfo.tm_mon + 1 << '-'
+      << setw(2) << setfill('0') << timeinfo.tm_mday << '-'
+      << setw(2) << setfill('0') << timeinfo.tm_hour << ':'
+      << setw(2) << setfill('0') << timeinfo.tm_min;
 
   msg << " wrote <" << currentSize << "> bytes in <" << eventsWritten
       << "> events to file <" << currentFilename << ">" << endl;
@@ -574,11 +618,12 @@ void FileStore::configure(pStoreConf configuration) {
 
 bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
   bool success = false;
+  struct tm timeinfo;
 
   if (!current_time) {
-    time_t rawtime;
-    time(&rawtime);
-    current_time = localtime(&rawtime);
+    time_t rawtime = time(NULL);
+    localtime_r(&rawtime, &timeinfo);
+    current_time = &timeinfo;
   }
 
   try {
@@ -595,10 +640,18 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
     string file = makeFullFilename(suffix, current_time);
 
-    if (rollPeriod == ROLL_DAILY) {
-      lastRollTime = current_time->tm_mday;
-    } else {  // default to hourly if rollPeriod is garbage
-      lastRollTime = current_time->tm_hour;
+    switch (rollPeriod) {
+      case ROLL_DAILY:
+        lastRollTime = current_time->tm_mday;
+        break;
+      case ROLL_HOURLY:
+        lastRollTime = current_time->tm_hour;
+        break;
+      case ROLL_OTHER:
+        lastRollTime = time(NULL);
+        break;
+      case ROLL_NEVER:
+        break;
     }
 
     if (writeFile) {
@@ -806,11 +859,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
 
       // rotate file if large enough and not writing to a separate file
       if ((currentSize > maxSize && maxSize != 0 )&& !file) {
-        time_t     rawtime;
-        struct tm *timeinfo;
-        time(&rawtime);
-        timeinfo = localtime(&rawtime);
-        rotateFile(timeinfo);
+        rotateFile();
         write_file = writeFile;
       }
     }
@@ -1003,11 +1052,7 @@ bool ThriftFileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messag
   // We can't wait until periodicCheck because we could be getting
   // a lot of data all at once in a failover situation
   if (currentSize > maxSize && maxSize != 0) {
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    rotateFile(timeinfo);
+    rotateFile();
   }
 
   return true;
@@ -1039,11 +1084,12 @@ void ThriftFileStore::flush() {
 }
 
 bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_time) {
+  struct tm timeinfo;
 
   if (!current_time) {
-    time_t rawtime;
-    time(&rawtime);
-    current_time = localtime(&rawtime);
+    time_t rawtime = time(NULL);
+    localtime_r(&rawtime, &timeinfo);
+    current_time = &timeinfo;
   }
 
   int suffix = findNewestFile(makeBaseFilename(current_time));
@@ -1065,10 +1111,18 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
     return false;
   }
 
-  if (rollPeriod == ROLL_DAILY) {
-    lastRollTime = current_time->tm_mday;
-  } else {  // default to hourly if rollPeriod is garbage
-    lastRollTime = current_time->tm_hour;
+  switch (rollPeriod) {
+    case ROLL_DAILY:
+      lastRollTime = current_time->tm_mday;
+      break;
+    case ROLL_HOURLY:
+      lastRollTime = current_time->tm_hour;
+      break;
+    case ROLL_OTHER:
+      lastRollTime = time(NULL);
+      break;
+    case ROLL_NEVER:
+      break;
   }
 
 
@@ -1141,8 +1195,7 @@ BufferStore::BufferStore(const string& category, bool multi_category)
     replayBuffer(true),
     state(DISCONNECTED) {
 
-  time(&lastWriteTime);
-  time(&lastOpenAttempt);
+  lastWriteTime = lastOpenAttempt = time(NULL);
   retryInterval = getNewRetryInterval();
 
   // we can't open the client conection until we get configured
@@ -1284,9 +1337,7 @@ shared_ptr<Store> BufferStore::copy(const std::string &category) {
 }
 
 bool BufferStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  time_t now;
-  time(&now);
-  lastWriteTime = now;
+  lastWriteTime = time(NULL);
 
   // If the queue is really long it's probably because the primary store isn't moving
   // fast enough and is backing up, in which case it's best to give up on it for now.
@@ -1342,7 +1393,7 @@ void BufferStore::changeState(buffer_state_t new_state) {
     // Whatever caused us to enter this state should have either set status
     // or chosen not to set status.
     g_Handler->incrementCounter("retries");
-    time(&lastOpenAttempt);
+    lastOpenAttempt = time(NULL);
     retryInterval = getNewRetryInterval();
     LOG_OPER("[%s] choosing new retry interval <%d> seconds", categoryHandled.c_str(),
              (int)retryInterval);
@@ -1369,10 +1420,9 @@ void BufferStore::periodicCheck() {
   primaryStore->periodicCheck();
   secondaryStore->periodicCheck();
 
-  time_t now;
-  struct tm* nowinfo;
-  time(&now);
-  nowinfo = localtime(&now);
+  time_t now = time(NULL);
+  struct tm nowinfo;
+  localtime_r(&now, &nowinfo);
 
   if (state == DISCONNECTED) {
 
@@ -1402,13 +1452,13 @@ void BufferStore::periodicCheck() {
     unsigned sent = 0;
     for (sent = 0; sent < bufferSendRate; ++sent) {
       boost::shared_ptr<logentry_vector_t> messages(new logentry_vector_t);
-      if (secondaryStore->readOldest(messages, nowinfo)) {
-        time(&lastWriteTime);
+      if (secondaryStore->readOldest(messages, &nowinfo)) {
+        lastWriteTime = time(NULL);
 
         unsigned long size = messages->size();
         if (size) {
           if (primaryStore->handleMessages(messages)) {
-            secondaryStore->deleteOldest(nowinfo);
+            secondaryStore->deleteOldest(&nowinfo);
           } else {
 
             if (messages->size() != size) {
@@ -1419,12 +1469,12 @@ void BufferStore::periodicCheck() {
                        categoryHandled.c_str(), size - messages->size(), size);
 
               // Put back un-handled messages
-              if (!secondaryStore->replaceOldest(messages, nowinfo)) {
+              if (!secondaryStore->replaceOldest(messages, &nowinfo)) {
                 // Nothing we can do but try to remove oldest messages and report a loss
                 LOG_OPER("[%s] buffer store secondary store lost %lu messages",
                          categoryHandled.c_str(), messages->size());
                 g_Handler->incrementCounter("lost", messages->size());
-                secondaryStore->deleteOldest(nowinfo);
+                secondaryStore->deleteOldest(&nowinfo);
               }
             }
 
@@ -1433,7 +1483,7 @@ void BufferStore::periodicCheck() {
           }
         }  else {
           // else it's valid for read to not find anything but not error
-          secondaryStore->deleteOldest(nowinfo);
+          secondaryStore->deleteOldest(&nowinfo);
         }
       } else {
         // This is bad news. We'll stay in the sending state and keep trying to read.
@@ -1442,7 +1492,7 @@ void BufferStore::periodicCheck() {
         break;
       }
 
-      if (secondaryStore->empty(nowinfo)) {
+      if (secondaryStore->empty(&nowinfo)) {
         LOG_OPER("[%s] No more buffer files to send, switching to streaming mode", categoryHandled.c_str());
         changeState(STREAMING);
 
@@ -1538,8 +1588,7 @@ bool NetworkStore::open() {
 
   if (smcBased) {
     bool success = true;
-    time_t now;
-    time(&now);
+    time_t now = time(NULL);
 
     // Only get list of servers if we haven't already gotten them recently
     if (lastServiceCheck <= (time_t) (now - serviceCacheTimeout)) {
