@@ -128,8 +128,8 @@ class FileStoreBase : public Store {
 
   // A full filename includes an absolute path and a sequence number suffix.
   std::string makeBaseFilename(struct tm* creation_time);
-  std::string makeFullFilename(int suffix, struct tm* creation_time,
-                               bool use_full_path = true);
+  std::string makeFullFilename(int suffix, struct tm* creation_time);
+
   std::string makeBaseSymlink();
   std::string makeFullSymlink();
   int  findOldestFile(const std::string& base_filename);
