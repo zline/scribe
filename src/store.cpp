@@ -1392,7 +1392,7 @@ void BufferStore::changeState(buffer_state_t new_state) {
     // Do not set status here as it is possible to be in this frequently.
     // Whatever caused us to enter this state should have either set status
     // or chosen not to set status.
-    g_Handler->incrementCounter("retries");
+    incCounter(categoryHandled, "retries");
     lastOpenAttempt = time(NULL);
     retryInterval = getNewRetryInterval();
     LOG_OPER("[%s] choosing new retry interval <%d> seconds", categoryHandled.c_str(),
@@ -1473,7 +1473,7 @@ void BufferStore::periodicCheck() {
                 // Nothing we can do but try to remove oldest messages and report a loss
                 LOG_OPER("[%s] buffer store secondary store lost %lu messages",
                          categoryHandled.c_str(), messages->size());
-                g_Handler->incrementCounter("lost", messages->size());
+                incCounter(categoryHandled, "lost", messages->size());
                 secondaryStore->deleteOldest(&nowinfo);
               }
             }
@@ -2256,7 +2256,7 @@ void NullStore::close() {
 }
 
 bool NullStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  g_Handler->incrementCounter("ignored", messages->size());
+  incCounter(categoryHandled, "ignored", messages->size());
   return true;
 }
 

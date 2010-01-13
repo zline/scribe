@@ -38,7 +38,7 @@ using namespace scribe::thrift;
 using namespace std;
 using boost::shared_ptr;
 
-shared_ptr<scribeHandler> g_Handler;
+static shared_ptr<scribeHandler> g_Handler;
 
 #define DEFAULT_CHECK_PERIOD       5
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
@@ -46,6 +46,8 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     1
 
 static int pending_signal = 0;
+static string overall_category = "scribe_overall";
+static string log_separator = ":";
 
 static void sigalrm(int sig)
 {
@@ -74,6 +76,23 @@ static void terminate(int sig) {
 
 void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]";
+}
+
+void incCounter(string category, string counter) {
+  incCounter(category, counter, 1);
+}
+
+void incCounter(string category, string counter, long amount) {
+  g_Handler->incrementCounter(category + log_separator + counter, amount);
+  g_Handler->incrementCounter(overall_category + log_separator + counter, amount);
+}
+
+void incCounter(string counter) {
+  incCounter(counter, 1);
+}
+
+void incCounter(string counter, long amount) {
+  g_Handler->incrementCounter(overall_category + log_separator + counter, amount);
 }
 
 int main(int argc, char **argv) {
@@ -319,14 +338,14 @@ bool scribeHandler::createCategoryFromModel(
 bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Check if we need to rate limit
   if (throttleDeny(messages.size())) {
-    incrementCounter("denied for rate");
+    incCounter("denied for rate");
     return true;
   }
 
   if (!pcategories || !pcategory_prefixes) {
     // don't bother to spam anything for this, our status should already
     // be showing up as WARNING in the monitoring tools.
-    incrementCounter("invalid requests");
+    incCounter("invalid requests");
     return true;
   }
 
@@ -361,7 +380,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   }
 
   if (max_count > maxQueueSize) {
-    incrementCounter("denied for queue size");
+    incCounter("denied for queue size");
     return true;
   }
 
@@ -435,9 +454,9 @@ void scribeHandler::addMessage(
   }
 
   if (numstores) {
-    incrementCounter("received good");
+    incCounter(entry.category, "received good");
   } else {
-    incrementCounter("received bad");
+    incCounter(entry.category, "received bad");
   }
 }
 
@@ -458,7 +477,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
-      incrementCounter("received blank category");
+      incCounter("received blank category");
       continue;
     }
 
@@ -486,9 +505,9 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     }
 
     if (store_list == NULL) {
-       LOG_OPER("log entry has invalid category <%s>",
-                (*msg_iter).category.c_str());
-      incrementCounter("received bad");
+      LOG_OPER("log entry has invalid category <%s>", category.c_str());
+      incCounter(category, "received bad");
+
       continue;
     }
 

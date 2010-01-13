@@ -330,12 +330,12 @@ void StoreQueue::processFailedMessages(shared_ptr<logentry_vector_t> messages) {
 
     LOG_OPER("[%s] WARNING: Re-queueing %lu messages!",
              categoryHandled.c_str(), messages->size());
-    g_Handler->incrementCounter("requeue", messages->size());
+    incCounter(categoryHandled, "requeue", messages->size());
   } else {
     // record messages as being lost
     LOG_OPER("[%s] WARNING: Lost %lu messages!",
              categoryHandled.c_str(), messages->size());
-    g_Handler->incrementCounter("lost", messages->size());
+    incCounter(categoryHandled, "lost", messages->size());
   }
 }
 
