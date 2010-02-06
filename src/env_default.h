@@ -79,7 +79,7 @@ class strhash {
     }
     uint32_t hash = 5381;
     int c;
-    while (c = *s++) {
+    while ((c = *s++)) {
       hash = ((hash << 5) + hash) + c; // hash * 33 + c
     }
     return hash;
