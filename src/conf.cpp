@@ -56,6 +56,16 @@ bool StoreConf::getInt(const std::string& intName, long int& _return) {
   }
 }
 
+bool StoreConf::getFloat(const std::string& floatName, float & _return) {
+  string str;
+  if (getString(floatName, str)) {
+    _return = strtof(str.c_str(), NULL);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool StoreConf::getUnsigned(const std::string& intName, unsigned long int& _return) {
   string str;
   if (getString(intName, str)) {

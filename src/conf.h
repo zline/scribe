@@ -56,6 +56,7 @@ class StoreConf {
   bool getInt(const std::string& intName, long int& _return);
   bool getUnsigned(const std::string& intName, unsigned long int& _return);
   bool getUnsignedLongLong(const std::string& intName, unsigned long long& _return);
+  bool getFloat(const std::string& floatName, float & _return);
   bool getString(const std::string& stringName, std::string& _return);
 
   void setString(const std::string& stringName, const std::string& value);
