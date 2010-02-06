@@ -31,6 +31,11 @@ typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
 typedef std::map<std::string, boost::shared_ptr<StoreQueue> > category_prefix_map_t;
 
+void incCounter(std::string category, std::string counter);
+void incCounter(std::string category, std::string counter, long amount);
+void incCounter(std::string counter);
+void incCounter(std::string counter, long amount);
+
 class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
 
@@ -79,7 +84,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   time_t lastMsgTime;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
-  unsigned long maxQueueSize;
+  unsigned long long maxQueueSize;
   bool newThreadPerCategory;
 
   /* mutex to syncronize access to scribeHandler.
@@ -112,7 +117,5 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void addMessage(const scribe::thrift::LogEntry& entry,
                   const boost::shared_ptr<store_list_t>& store_list);
 };
-
-extern boost::shared_ptr<scribeHandler> g_Handler;
 
 #endif // SCRIBE_SERVER_H
