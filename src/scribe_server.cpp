@@ -79,6 +79,18 @@ void print_usage(const char* program_name) {
   cout << "Usage: " << program_name << " [-p port] [-c config_file]";
 }
 
+string resultCodeToString(ResultCode rc) {
+  if (rc == OK) {
+    return "OK";
+  } else if (rc == TRY_LATER) {
+    return "TRY_LATER";
+  } else {
+    LOG_OPER("ERROR: Unknown ResultCode! This may be extremely bad.");
+    incCounter("critical error", 1);
+    return "UNKNOWN";
+  }
+}
+
 void incCounter(string category, string counter) {
   incCounter(category, counter, 1);
 }

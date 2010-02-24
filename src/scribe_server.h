@@ -31,6 +31,8 @@ typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
 typedef std::map<std::string, boost::shared_ptr<StoreQueue> > category_prefix_map_t;
 
+std::string resultCodeToString(scribe::thrift::ResultCode rc);
+
 void incCounter(std::string category, std::string counter);
 void incCounter(std::string category, std::string counter, long amount);
 void incCounter(std::string counter);
