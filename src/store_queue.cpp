@@ -367,6 +367,7 @@ void StoreQueue::configureInline(pStoreConf configuration) {
 
   string tmp;
   if (configuration->getString("must_succeed", tmp) && tmp == "no") {
+    LOG_OPER("[%s] Setting mustSucceed to false.", categoryHandled.c_str());
     mustSucceed = false;
   }
 
