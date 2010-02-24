@@ -145,23 +145,31 @@ void StoreQueue::configureAndOpen(pStoreConf configuration) {
 void StoreQueue::stop() {
   if (isModel) {
     LOG_OPER("ERROR: called stop() on model store");
-  } else if(!stopping) {
-    pthread_mutex_lock(&cmdMutex);
-    StoreCommand cmd(CMD_STOP);
-    cmdQueue.push(cmd);
-    stopping = true;
-    pthread_mutex_unlock(&cmdMutex);
-
-    // signal that there is work to do if not already signaled
-    pthread_mutex_lock(&hasWorkMutex);
-    if (!hasWork) {
-      hasWork = true;
-      pthread_cond_signal(&hasWorkCond);
-    }
-    pthread_mutex_unlock(&hasWorkMutex);
-
-    pthread_join(storeThread, NULL);
+    return;
   }
+
+  if (stopping) {
+    LOG_OPER("[%s] ERROR: Already stopping storeQueue",
+             categoryHandled.c_str());
+    return;
+  }
+
+  LOG_OPER("[%s] Stopping storeQueue", categoryHandled.c_str());
+  pthread_mutex_lock(&cmdMutex);
+  StoreCommand cmd(CMD_STOP);
+  cmdQueue.push(cmd);
+  stopping = true;
+  pthread_mutex_unlock(&cmdMutex);
+
+  // signal that there is work to do if not already signaled
+  pthread_mutex_lock(&hasWorkMutex);
+  if (!hasWork) {
+    hasWork = true;
+    pthread_cond_signal(&hasWorkCond);
+  }
+  pthread_mutex_unlock(&hasWorkMutex);
+
+  pthread_join(storeThread, NULL);
 }
 
 void StoreQueue::open() {
@@ -201,7 +209,7 @@ std::string StoreQueue::getBaseType() {
 }
 
 void StoreQueue::threadMember() {
-  LOG_OPER("store thread starting");
+  LOG_OPER("[%s] Starting StoreQueue", categoryHandled.c_str());
 
   if (isModel) {
     LOG_OPER("ERROR: store thread starting on model store, exiting");
@@ -309,7 +317,7 @@ void StoreQueue::threadMember() {
       // wait until there's some work to do or we timeout
       pthread_mutex_lock(&hasWorkMutex);
       if (!hasWork) {
-	pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
+        pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
       }
       hasWork = false;
       pthread_mutex_unlock(&hasWorkMutex);
