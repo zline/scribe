@@ -84,6 +84,7 @@ Store::Store(const string& category, const string &type, bool multi_category)
     multiCategory(multi_category),
     storeType(type) {
   pthread_mutex_init(&statusMutex, NULL);
+  LOG_OPER("[%s] Created %s store", categoryHandled.c_str(), storeType.c_str());
 }
 
 Store::~Store() {
