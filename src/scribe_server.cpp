@@ -47,7 +47,6 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     1
 
 static int pending_signal = 0;
-static string overall_category = "scribe_overall";
 static string log_separator = ":";
 
 static void sigalrm(int sig)
@@ -97,7 +96,7 @@ void incCounter(string category, string counter) {
 
 void incCounter(string category, string counter, long amount) {
   g_Handler->incrementCounter(category + log_separator + counter, amount);
-  g_Handler->incrementCounter(overall_category + log_separator + counter, amount);
+  g_Handler->incrementCounter(counter, amount);
 }
 
 void incCounter(string counter) {
@@ -105,7 +104,7 @@ void incCounter(string counter) {
 }
 
 void incCounter(string counter, long amount) {
-  g_Handler->incrementCounter(overall_category + log_separator + counter, amount);
+  g_Handler->incrementCounter(counter, amount);
 }
 
 int main(int argc, char **argv) {
