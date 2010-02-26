@@ -271,55 +271,48 @@ bool scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
     categorySendCounts[(*iter)->category] += 1;
   }
 
-  // If a send fails we immediately try to reopen the connection
-  // and send again. This is so in the case where a central server
-  // behind a load balancer fails we just reconnect to a different one.
-  for (int i = 0; i < 2; ++i) {
-    ResultCode result = TRY_LATER;
-    try {
-      result = resendClient->Log(msgs);
-    } catch (TTransportException& ttx) {
-      LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
-               size, connectionString().c_str(), ttx.what());
-    } catch (...) {
-      LOG_OPER("Unknown exception sending <%d> messages to remote scribe server %s",
-               size, connectionString().c_str());
-    }
-
-    // Periodically log sent message stats. While these statistics are
-    // available as counters they may not be being collected, and serve
-    // as heartbeats useful when diagnosing issues.
-    for (map<string, int>::iterator it = categorySendCounts.begin();
-         it != categorySendCounts.end();
-         ++it) {
-      sendCounts[it->first + ":" + resultCodeToString(result)] += it->second;
-    }
-    time_t now = time(NULL);
-    if (now - lastHeartbeat > 60) {
-      for (map<string, int>::iterator it2 = sendCounts.begin();
-           it2 != sendCounts.end();
-           ++it2) {
-        LOG_OPER("Send counts %s: %s=%d", connectionString().c_str(),
-                 it2->first.c_str(), it2->second);
-      }
-      sendCounts.clear();
-      lastHeartbeat = now;
-    }
-
-    if (result == OK) {
-      incCounter("sent", size);
-      LOG_DEBUG("DEBUG: Successfully sent <%d> messages to remote scribe server %s",
-                size, connectionString().c_str());
-      return true;
-    }
-
-    LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
-             size, connectionString().c_str(), (int) result);
-    close();
-    if (!open()) {
-      return false;
-    }
+  ResultCode result = TRY_LATER;
+  try {
+    result = resendClient->Log(msgs);
+  } catch (TTransportException& ttx) {
+    LOG_OPER("Failed to send <%d> messages to remote scribe server %s error <%s>",
+             size, connectionString().c_str(), ttx.what());
+  } catch (...) {
+    LOG_OPER("Unknown exception sending <%d> messages to remote scribe server %s",
+             size, connectionString().c_str());
   }
+
+  // Periodically log sent message stats. While these statistics are
+  // available as counters they may not be being collected, and serve
+  // as heartbeats useful when diagnosing issues.
+  for (map<string, int>::iterator it = categorySendCounts.begin();
+       it != categorySendCounts.end();
+       ++it) {
+    sendCounts[it->first + ":" + resultCodeToString(result)] += it->second;
+  }
+  time_t now = time(NULL);
+  if (now - lastHeartbeat > 60) {
+    for (map<string, int>::iterator it2 = sendCounts.begin();
+         it2 != sendCounts.end();
+         ++it2) {
+      LOG_OPER("Send counts %s: %s=%d", connectionString().c_str(),
+               it2->first.c_str(), it2->second);
+    }
+    sendCounts.clear();
+    lastHeartbeat = now;
+  }
+
+  if (result == OK) {
+    incCounter("sent", size);
+    LOG_DEBUG("DEBUG: Successfully sent <%d> messages to remote scribe server %s",
+              size, connectionString().c_str());
+    return true;
+  }
+
+  LOG_OPER("Failed to send <%d> messages, remote scribe server %s returned error code <%d>",
+           size, connectionString().c_str(), (int) result);
+  close();
+  open();
   return false;
 }
 
