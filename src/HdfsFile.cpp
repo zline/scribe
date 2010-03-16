@@ -10,8 +10,6 @@
 #include "file.h"
 #include "HdfsFile.h"
 
-#ifdef USE_SCRIBE_HDFS
-
 #ifdef LZO_STREAMING
 /* magic file header for lzopack-compressed files */
 static const unsigned char lzop_magic[9] =
