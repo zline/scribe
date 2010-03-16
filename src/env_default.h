@@ -39,7 +39,7 @@
     time(&now);                                                         \
     ctime_r(&now, dbgtime);                                             \
     dbgtime[24] = '\0';                                                 \
-    fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
+    fprintf(stderr,"[%s %s:%d] " #format_string " \n", dbgtime, __FILE__, __LINE__, ##__VA_ARGS__); \
   }
 
 extern int debug_level;
@@ -51,7 +51,7 @@ extern int debug_level;
       time(&now);                                                          \
       ctime_r(&now, dbgtime);                                              \
       dbgtime[24] = '\0';                                                  \
-      fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
+      fprintf(stderr,"[%s %s:%d] " #format_string " \n", dbgtime, __FILE__, __LINE__, ##__VA_ARGS__); \
     }                                                                      \
   }
 
