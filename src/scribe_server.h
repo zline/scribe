@@ -51,6 +51,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void setStatusDetails(const std::string& new_status_details);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
+  unsigned long int debugLevel; // Controls verbosity of scribe output.
 
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;
