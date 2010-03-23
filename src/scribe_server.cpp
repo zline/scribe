@@ -665,28 +665,16 @@ void scribeHandler::initialize() {
 // Configures the store specified by the store configuration. Returns false if failed.
 bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
   string category;
+  string categories;
   shared_ptr<StoreQueue> pstore;
   vector<string> category_list;
   shared_ptr<StoreQueue> model;
-  bool single_category = true;
 
-
-  // Check if a single category is specified
-  if (store_conf->getString("category", category)) {
-    category_list.push_back(category);
-  }
-
-  // Check if multiple categories are specified
-  string categories;
-  if (store_conf->getString("categories", categories)) {
-    // We want to set up to configure multiple categories, even if there is
-    // only one category specified here so that configuration is consistent
-    // for the 'categories' keyword.
-    single_category = false;
-
-    // Parse category names, separated by whitespace
+  // To simplify configuration, `category' and `categories' have become
+  // synonyms. That is, both accept a whitespace-separated list of names.
+  if (store_conf->getString("category", categories) ||
+      store_conf->getString("categories", categories)) {
     stringstream ss(categories);
-
     while (ss >> category) {
       category_list.push_back(category);
     }
@@ -695,9 +683,8 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
   if (category_list.size() == 0) {
     setStatusDetails("Bad config - store with no category");
     return false;
-  }
-  else if (single_category) {
-    // configure single store
+  } else if (category_list.size() == 1) {
+    // Skip the model if creating just one store.
     shared_ptr<StoreQueue> result =
       configureStoreCategory(store_conf, category_list[0], model);
 
