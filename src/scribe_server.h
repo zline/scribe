@@ -26,10 +26,8 @@
 
 #include "store.h"
 #include "store_queue.h"
-#include "zk_client.h"
-
 #ifdef USE_ZOOKEEPER
-extern boost::shared_ptr<ZKClient> g_ZKClient;
+#include "zk_client.h"
 #endif
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;

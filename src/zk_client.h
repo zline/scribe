@@ -22,22 +22,34 @@
 
 #ifdef USE_ZOOKEEPER
 #include "common.h"
+#include "scribe_server.h"
+
+void watcher(zhandle_t *zzh, int type, int state,
+             const char *path, void *watcherCtx);
 
 class ZKClient {
  public:
-   ZKClient();
+   ZKClient(std::string& hostPort,
+            std::string& zkRegistrationPrefix,
+            unsigned long int handlerPort);
    virtual ~ZKClient();
 
-   static void watcher(zhandle_t *zzh, int type, int state,
-                       const char *path, void *watcherCtx);
-   void connect(std::string& hostPort);
-   bool registerTask(std::string& pathName, unsigned long int port);
+   bool connect();
+   bool registerTask();
+   bool isRegistered();
    bool getRemoteScribe(std::string& parentZnode,
                         std::string& remoteHost,
                         unsigned long& remotePort);
 
    zhandle_t *zh; // Zookeeper connection handle.
+   std::string zkHostPort; // Zookeeper server host:port
+   std::string zkRegistrationPrefix; // In `/zk/path/name' format.
+   std::string zkRegistrationName; // In `hostname:port' format.
+   std::string zkFullRegistrationName;
+   unsigned long int port;
 };
+
+extern ZKClient* g_ZKClient;
 
 #endif // SCRIBE_ZK_CLIENT_H
 #endif // USE_ZOOKEEPER

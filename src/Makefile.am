@@ -52,6 +52,9 @@ EXTERNAL_LIBS += -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
 endif
+if USE_ZOOKEEPER
+  EXTERNAL_LIBS += -lzookeeper_mt
+endif
 
 # Section 2 ############################################################################
 # Set common flags recognized by automake.

@@ -18,12 +18,53 @@
 // @author Travis Crawford <travis@twitter.com>
 
 #include "common.h"
+#include "scribe_server.h"
 #include "zk_client.h"
 
 using namespace std;
 using boost::lexical_cast;
+using boost::shared_ptr;
 
-ZKClient::ZKClient() {
+ZKClient * g_ZKClient;
+
+/*
+ * Global Zookeeper watcher handles all callbacks.
+ */
+void watcher(zhandle_t *zzh, int type, int state,
+             const char *path, void *watcherCtx) {
+
+  // Zookeeper session established so attempt registration.
+  if ((state == ZOO_CONNECTED_STATE) &&
+      (type == ZOO_SESSION_EVENT)) {
+    g_ZKClient->registerTask();
+  }
+
+  // Registration znode was deleted so attempt registration.
+  else if ((state == ZOO_CONNECTED_STATE) &&
+           (type == ZOO_DELETED_EVENT) &&
+           (lexical_cast<string>(path) == g_ZKClient->zkFullRegistrationName)) {
+    g_ZKClient->registerTask();
+  }
+
+  // This should never happen.
+  else {
+    LOG_DEBUG("Received unhandled watch callback: %s %d %d", path, type, state);
+  }
+}
+
+ZKClient::ZKClient(string& hostPort,
+                   string& zk_registration_prefix,
+                   unsigned long int handlerPort) {
+  zkHostPort = hostPort;
+  zkRegistrationPrefix = zk_registration_prefix;
+  port = handlerPort;
+
+  char hostname[1024];
+  hostname[1023] = '\0';
+  gethostname(hostname, 1023);
+  zkRegistrationName = lexical_cast<string>(hostname) + ":" + lexical_cast<string>(port);
+  zkFullRegistrationName = zkRegistrationPrefix + "/" + zkRegistrationName;
+
   if (debug_level) {
     zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
   }
@@ -33,50 +74,54 @@ ZKClient::~ZKClient() {
   zookeeper_close(zh);
 }
 
-void ZKClient::watcher(zhandle_t *zzh, int type, int state,
-                       const char *path, void *watcherCtx) {}
-
-void ZKClient::connect(string& hostPort) {
-  zh = zookeeper_init(hostPort.c_str(), watcher, 10000, 0, 0, 0);
+bool ZKClient::connect() {
+  zh = zookeeper_init(zkHostPort.c_str(), watcher, 10000, 0, 0, 0);
+  return true; // ZK client retries on failure.
 }
 
-/*
- * Register this node in Zookeeper,
- * in `/scribe/group/prefix/host:port' format.
- */
-bool ZKClient::registerTask(string& pathName, unsigned long int port) {
+bool ZKClient::isRegistered() {
+  return false;
+}
+
+bool ZKClient::registerTask() {
   static string delimiter = "/";
   static string contents = "";
-  size_t index = pathName.find(delimiter, 0);
+  size_t index = zkRegistrationPrefix.find(delimiter, 0);
   char tmp[0];
 
   // Prefixs are created as regular znodes.
   while (index < string::npos) {
-    index = pathName.find(delimiter, index+1);
-    string prefix = pathName.substr(0, index);
+    index = zkRegistrationPrefix.find(delimiter, index+1);
+    string prefix = zkRegistrationPrefix.substr(0, index);
     zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
                &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
   }
 
   // Register this scribe as an ephemeral node.
-  char hostname[1024];
-  hostname[1023] = '\0';
-  gethostname(hostname, 1023);
-  string fullPath = pathName + "/" + hostname + ":";
-  fullPath += lexical_cast<string>(port);
-  int ret = zoo_create(zh, fullPath.c_str(), contents.c_str(),
+  int ret = zoo_create(zh, zkFullRegistrationName.c_str(), contents.c_str(),
                        contents.length(), &ZOO_CREATOR_ALL_ACL,
                        ZOO_EPHEMERAL, tmp, sizeof(tmp));
-  if (ZOK != ret) {
-    return false;
+  if (ZOK == ret) {
+    return true;
+  } else if (ZNODEEXISTS == ret) {
+    struct Stat stat;
+    if (ZOK == zoo_exists(zh, zkFullRegistrationName.c_str(), 1, &stat)) {
+      LOG_DEBUG("Set watch on znode that already exists: %s", zkFullRegistrationName.c_str());
+      return true;
+    } else {
+      LOG_OPER("Failed setting watch on znode: %s", zkFullRegistrationName.c_str());
+      return false;
+    }
   }
-  return true;
+  LOG_OPER("Registration failed for unknown reason: %s", zkFullRegistrationName.c_str());
+  return false;
 }
 
 // Get the best host:port to send messages to at this time.
 bool ZKClient::getRemoteScribe(string& parentZnode,
                                string& remoteHost,
                                unsigned long& remotePort) {
+  LOG_DEBUG("Getting the best remote scribe.");
   struct String_vector children;
   if (ZOK != zoo_get_children(zh, parentZnode.c_str(), 0, &children)) {
     return false;

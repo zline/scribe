@@ -26,6 +26,9 @@
 #include "common.h"
 #include "scribe_server.h"
 #include "thrift/transport/TSimpleFileTransport.h"
+#ifdef USE_ZOOKEEPER
+#include "zk_client.h"
+#endif
 
 using namespace std;
 using namespace boost;
@@ -1571,12 +1574,6 @@ void NetworkStore::configure(pStoreConf configuration) {
     smcBased = false;
     configuration->getString("remote_host", remoteHost);
     configuration->getUnsigned("remote_port", remotePort);
-#ifdef USE_ZOOKEEPER
-    if (0 == remoteHost.find("zk://")) {
-      string parentZnode = remoteHost.substr(5, string::npos);
-      g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort);
-    }
-#endif
   }
 
   if (!configuration->getInt("timeout", timeout)) {
@@ -1627,8 +1624,26 @@ bool NetworkStore::open() {
       }
     }
 
-  } else if (remotePort <= 0 ||
-             remoteHost.empty()) {
+    return true;
+  }
+
+#ifdef USE_ZOOKEEPER
+  /*
+   * Check if our remote scribe should be discovered through Zookeeper. If so,
+   * override remoteHost and remotePort then proceed as if these values were
+   * specified in the configuration file.
+   */
+  if (0 == remoteHost.find("zk://")) {
+    string parentZnode = remoteHost.substr(5, string::npos);
+    if (!g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {
+      LOG_OPER("Unable to get a remote Scribe via Zookeeper!");
+      return false;
+    }
+  }
+#endif
+
+  if (remotePort <= 0 ||
+      remoteHost.empty()) {
     LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>", categoryHandled.c_str(), remoteHost.c_str(), remotePort);
     setStatus("Bad config - invalid location for remote server");
     return false;

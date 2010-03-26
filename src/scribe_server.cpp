@@ -41,10 +41,6 @@ using boost::shared_ptr;
 
 static shared_ptr<scribeHandler> g_Handler;
 
-#ifdef USE_ZOOKEEPER
-shared_ptr<ZKClient> g_ZKClient;
-#endif
-
 #define DEFAULT_CHECK_PERIOD       5
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
@@ -673,9 +669,9 @@ void scribeHandler::initialize() {
       if (!config.getString("zk_registration_prefix", zk_registration_prefix)) {
         throw runtime_error("ZK: No registration prefix!");
       } else {
-        g_ZKClient = shared_ptr<ZKClient>(new ZKClient());
-        g_ZKClient->connect(zk_server);
-        g_ZKClient->registerTask(zk_registration_prefix, port);
+        g_ZKClient = new ZKClient(zk_server, zk_registration_prefix,
+                                  g_Handler->port);
+        g_ZKClient->connect();
       }
     }
 #endif
