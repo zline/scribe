@@ -62,6 +62,7 @@ class scribeConn {
   pthread_mutex_t mutex;
   time_t lastHeartbeat;
   std::map<std::string, int> sendCounts; // Periodically logged for diagnostics
+  std::string zkRegistrationZnode; // Where to autodiscover a remote scribe
 };
 
 // key is hostname:port

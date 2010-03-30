@@ -1576,22 +1576,6 @@ void NetworkStore::configure(pStoreConf configuration) {
     configuration->getUnsigned("remote_port", remotePort);
   }
 
-#ifdef USE_ZOOKEEPER
-  /*
-   * Check if our remote scribe should be discovered through Zookeeper. If so,
-   * override remoteHost and remotePort then proceed as if these values were
-   * specified in the configuration file.
-   */
-  if (0 == remoteHost.find("zk://")) {
-    string parentZnode = remoteHost.substr(5, string::npos);
-    if (g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {
-      LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
-    } else {
-      LOG_OPER("Unable to get a remote Scribe from %s", remoteHost.c_str());
-    }
-  }
-#endif
-
   if (!configuration->getInt("timeout", timeout)) {
     timeout = DEFAULT_SOCKET_TIMEOUT_MS;
   }
@@ -1642,23 +1626,6 @@ bool NetworkStore::open() {
 
     return true;
   }
-
-#ifdef USE_ZOOKEEPER
-  /*
-   * Check if our remote scribe should be discovered through Zookeeper. If so,
-   * override remoteHost and remotePort then proceed as if these values were
-   * specified in the configuration file.
-   */
-  if (0 == remoteHost.find("zk://")) {
-    string parentZnode = remoteHost.substr(5, string::npos);
-    if (g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {
-      LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
-    } else {
-      LOG_OPER("Unable to get a remote Scribe from %s", remoteHost.c_str());
-      return false;
-    }
-  }
-#endif
 
   if (remotePort <= 0 ||
       remoteHost.empty()) {
