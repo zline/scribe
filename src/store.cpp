@@ -26,9 +26,6 @@
 #include "common.h"
 #include "scribe_server.h"
 #include "thrift/transport/TSimpleFileTransport.h"
-#ifdef USE_ZOOKEEPER
-#include "zk_client.h"
-#endif
 
 using namespace std;
 using namespace boost;
@@ -1625,10 +1622,8 @@ bool NetworkStore::open() {
     }
 
     return true;
-  }
-
-  if (remotePort <= 0 ||
-      remoteHost.empty()) {
+  } else if (remotePort <= 0 ||
+             remoteHost.empty()) {
     LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>", categoryHandled.c_str(), remoteHost.c_str(), remotePort);
     setStatus("Bad config - invalid location for remote server");
     return false;
