@@ -1621,7 +1621,6 @@ bool NetworkStore::open() {
       }
     }
 
-    return true;
   } else if (remotePort <= 0 ||
              remoteHost.empty()) {
     LOG_OPER("[%s] Bad config - won't attempt to connect to <%s:%lu>", categoryHandled.c_str(), remoteHost.c_str(), remotePort);
