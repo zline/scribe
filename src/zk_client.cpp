@@ -1,5 +1,3 @@
-//  Copyright (c) 2007-2008 Facebook
-//
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
 //  You may obtain a copy of the License at
@@ -25,7 +23,7 @@ using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
-ZKClient * g_ZKClient;
+shared_ptr<ZKClient> g_ZKClient;
 
 /*
  * Global Zookeeper watcher handles all callbacks.
@@ -52,19 +50,8 @@ void watcher(zhandle_t *zzh, int type, int state,
   }
 }
 
-ZKClient::ZKClient(string& hostPort,
-                   string& zk_registration_prefix,
-                   unsigned long int handlerPort) {
-  zkHostPort = hostPort;
-  zkRegistrationPrefix = zk_registration_prefix;
-  port = handlerPort;
-
-  char hostname[1024];
-  hostname[1023] = '\0';
-  gethostname(hostname, 1023);
-  zkRegistrationName = lexical_cast<string>(hostname) + ":" + lexical_cast<string>(port);
-  zkFullRegistrationName = zkRegistrationPrefix + "/" + zkRegistrationName;
-
+ZKClient::ZKClient() {
+  zh = NULL;
   if (debug_level) {
     zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
   }
@@ -74,24 +61,36 @@ ZKClient::~ZKClient() {
   zookeeper_close(zh);
 }
 
-bool ZKClient::connect() {
-  zh = zookeeper_init(zkHostPort.c_str(), watcher, 10000, 0, 0, 0);
-  return true; // ZK client retries on failure.
+void ZKClient::connect() {
+  LOG_DEBUG("Connecting to zookeeper.");
+  zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, 0, 0);
 }
 
-bool ZKClient::isRegistered() {
-  return false;
+void ZKClient::disconnect() {
+  LOG_DEBUG("Disconnecting from zookeeper.");
+  zookeeper_close(zh);
+  zh = NULL;
 }
 
 bool ZKClient::registerTask() {
-  static string delimiter = "/";
+  if (zkRegistrationPrefix.empty()) {
+    return false;
+  }
+
+  LOG_OPER("Registering task in Zookeeper.");
+  char hostname[1024];
+  hostname[1023] = '\0';
+  gethostname(hostname, 1023);
+  zkRegistrationName = lexical_cast<string>(hostname) + ":" + lexical_cast<string>(scribeHandlerPort);
+  zkFullRegistrationName = zkRegistrationPrefix + "/" + zkRegistrationName;
+
   static string contents = "";
-  size_t index = zkRegistrationPrefix.find(delimiter, 0);
+  size_t index = zkRegistrationPrefix.find("/", 0);
   char tmp[0];
 
   // Prefixs are created as regular znodes.
   while (index < string::npos) {
-    index = zkRegistrationPrefix.find(delimiter, index+1);
+    index = zkRegistrationPrefix.find("/", index+1);
     string prefix = zkRegistrationPrefix.substr(0, index);
     zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
                &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
@@ -121,26 +120,42 @@ bool ZKClient::registerTask() {
 bool ZKClient::getRemoteScribe(string& parentZnode,
                                string& remoteHost,
                                unsigned long& remotePort) {
+  bool ret = false;
+  bool should_disconnect = false;
+  if (zkServer.empty()) {
+    LOG_OPER("No zookeeper server! Unable to discover remote scribes.");
+    return false;
+  } else if (NULL == zh) {
+    connect();
+    should_disconnect = true;
+  } else if (!zoo_state(zh)) {
+    LOG_OPER("No zookeeper connection state! Unable to discover remote scribes.");
+    return false;
+  }
+
   LOG_DEBUG("Getting the best remote scribe.");
   struct String_vector children;
   if (ZOK != zoo_get_children(zh, parentZnode.c_str(), 0, &children)) {
-    return false;
+    ret = false;
+  } else if (0 == children.count) {
+    ret = false;
+  } else {
+    // Choose a random scribe.
+    srand(time(NULL));
+    int remoteScribeIndex = rand() % children.count;
+
+    string remoteScribeZnode = children.data[remoteScribeIndex];
+    string delimiter = ":";
+    size_t index = remoteScribeZnode.find(delimiter);
+
+    remoteHost = remoteScribeZnode.substr(0, index);
+    string port = remoteScribeZnode.substr(index+1, string::npos);
+    remotePort = static_cast<unsigned long>(atol(port.c_str()));
+    ret = true;
   }
 
-  if (0 == children.count) {
-    return false;
+  if (should_disconnect) {
+    disconnect();
   }
-
-  // Choose a random scribe.
-  srand(time(NULL));
-  int remoteScribeIndex = rand() % children.count;
-
-  string remoteScribeZnode = children.data[remoteScribeIndex];
-  string delimiter = ":";
-  size_t index = remoteScribeZnode.find(delimiter);
-
-  remoteHost = remoteScribeZnode.substr(0, index);
-  string port = remoteScribeZnode.substr(index+1, string::npos);
-  remotePort = static_cast<unsigned long>(atol(port.c_str()));
-  return true;
+  return ret;
 }

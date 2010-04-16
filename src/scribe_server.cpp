@@ -654,25 +654,35 @@ void scribeHandler::initialize() {
     }
 
 #ifdef USE_ZOOKEEPER
-    /*
-     * Scribe can optionally register itself in Zookeeper by compiling with
-     * Zookeeper support and setting the following config options:
-     *
-     *   zk_server: Zookeeper server to register with. For example:
-     *              zookeeper.local.twitter.com:2181
-     *   zk_registration_prefix: Znode prefix. For example:
-     *                           /twitter/scribe/aggregator
-     */
-    string zk_server;
-    if (config.getString("zk_server", zk_server)) {
-      string zk_registration_prefix;
-      if (!config.getString("zk_registration_prefix", zk_registration_prefix)) {
-        throw runtime_error("ZK: No registration prefix!");
-      } else {
-        g_ZKClient = new ZKClient(zk_server, zk_registration_prefix,
-                                  g_Handler->port);
-        g_ZKClient->connect();
-      }
+    if (!g_ZKClient) {
+      LOG_DEBUG("Creating new ZKClient.");
+      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
+    }
+
+    // Disconnect if already connected to clear previous state.
+    if (g_ZKClient->zh) {
+      g_ZKClient->disconnect();
+    }
+
+    // comma separated host:port pairs, each corresponding to a zk
+    // server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
+    if (!config.getString("zk_server", g_ZKClient->zkServer)) {
+      g_ZKClient->zkServer.clear();
+    }
+
+    // znode to register this task at in /path/to/znode format.
+    if (!config.getString("zk_registration_prefix", g_ZKClient->zkRegistrationPrefix)) {
+      g_ZKClient->zkRegistrationPrefix.clear();
+    }
+
+    g_ZKClient->scribeHandlerPort = g_Handler->port;
+
+    if (!g_ZKClient->zkServer.empty() &&
+        !g_ZKClient->zkRegistrationPrefix.empty() &&
+        !g_ZKClient->zh) {
+      // Only connect at this time if we register ourself. If needed,
+      // we connect+disconnect when discovering remote_host.
+      g_ZKClient->connect();
     }
 #endif
 

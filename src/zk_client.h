@@ -29,27 +29,25 @@ void watcher(zhandle_t *zzh, int type, int state,
 
 class ZKClient {
  public:
-   ZKClient(std::string& hostPort,
-            std::string& zkRegistrationPrefix,
-            unsigned long int handlerPort);
+   ZKClient();
    virtual ~ZKClient();
 
-   bool connect();
+   void connect();
+   void disconnect();
    bool registerTask();
-   bool isRegistered();
    bool getRemoteScribe(std::string& parentZnode,
                         std::string& remoteHost,
                         unsigned long& remotePort);
 
-   zhandle_t *zh; // Zookeeper connection handle.
-   std::string zkHostPort; // Zookeeper server host:port
-   std::string zkRegistrationPrefix; // In `/zk/path/name' format.
-   std::string zkRegistrationName; // In `hostname:port' format.
+   zhandle_t *zh;
+   std::string zkServer;
+   std::string zkRegistrationPrefix;
+   std::string zkRegistrationName;
    std::string zkFullRegistrationName;
-   unsigned long int port;
+   unsigned long int scribeHandlerPort;
 };
 
-extern ZKClient* g_ZKClient;
+extern boost::shared_ptr<ZKClient> g_ZKClient;
 
 #endif // SCRIBE_ZK_CLIENT_H
 #endif // USE_ZOOKEEPER
