@@ -155,6 +155,9 @@ scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_)
   remotePort(port),
   timeout(timeout_) {
   pthread_mutex_init(&mutex, NULL);
+#ifdef USE_ZOOKEEPER
+  zkRegistrationZnode = hostname;
+#endif
 }
 
 scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_)
@@ -196,6 +199,17 @@ bool scribeConn::isOpen() {
 
 bool scribeConn::open() {
   try {
+
+#ifdef USE_ZOOKEEPER
+    if (0 == zkRegistrationZnode.find("zk://")) {
+      string parentZnode = zkRegistrationZnode.substr(5, string::npos);
+      if (g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {
+        LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
+      } else {
+        LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
+      }
+    }
+#endif
 
     socket = smcBased ?
       shared_ptr<TSocket>(new TSocketPool(serverList)) :

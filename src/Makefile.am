@@ -52,6 +52,9 @@ EXTERNAL_LIBS += -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
 endif
+if USE_ZOOKEEPER
+  EXTERNAL_LIBS += -lzookeeper_mt
+endif
 
 # Section 2 ############################################################################
 # Set common flags recognized by automake.
@@ -97,6 +100,9 @@ bin_PROGRAMS = scribed
 scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp scribe_server.cpp $(FB_SOURCES)
 if USE_SCRIBE_HDFS
   scribed_SOURCES += HdfsFile.cpp
+endif
+if USE_ZOOKEEPER
+  scribed_SOURCES += zk_client.cpp
 endif
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
 

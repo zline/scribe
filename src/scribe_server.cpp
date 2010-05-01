@@ -603,6 +603,39 @@ void scribeHandler::initialize() {
       throw runtime_error("No port number configured");
     }
 
+#ifdef USE_ZOOKEEPER
+    if (!g_ZKClient) {
+      LOG_OPER("Creating new ZKClient.");
+      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
+    }
+
+    // Disconnect if already connected to clear previous state.
+    if (g_ZKClient->zh) {
+      g_ZKClient->disconnect();
+    }
+
+    // comma separated host:port pairs, each corresponding to a zk
+    // server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
+    if (!config.getString("zk_server", g_ZKClient->zkServer)) {
+      g_ZKClient->zkServer.clear();
+    }
+
+    // znode to register this task at in /path/to/znode format.
+    if (!config.getString("zk_registration_prefix", g_ZKClient->zkRegistrationPrefix)) {
+      g_ZKClient->zkRegistrationPrefix.clear();
+    }
+
+    g_ZKClient->scribeHandlerPort = g_Handler->port;
+
+    if (!g_ZKClient->zkServer.empty() &&
+        !g_ZKClient->zkRegistrationPrefix.empty() &&
+        !g_ZKClient->zh) {
+      // Only connect at this time if we register ourself. If needed,
+      // we connect+disconnect when discovering remote_host.
+      g_ZKClient->connect();
+    }
+#endif
+
     // check if config sets the size to use for the ThreadManager
     unsigned long int num_threads;
     if (config.getUnsigned("num_thrift_server_threads", num_threads)) {

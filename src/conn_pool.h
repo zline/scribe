@@ -60,6 +60,9 @@ class scribeConn {
   unsigned long remotePort;
   int timeout; // connection, send, and recv timeout
   pthread_mutex_t mutex;
+#ifdef USE_ZOOKEEPER
+  std::string zkRegistrationZnode; // Where to autodiscover a remote scribe
+#endif
 };
 
 // key is hostname:port or the smc_service

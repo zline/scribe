@@ -26,6 +26,9 @@
 
 #include "store.h"
 #include "store_queue.h"
+#ifdef USE_ZOOKEEPER
+#include "zk_client.h"
+#endif
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
