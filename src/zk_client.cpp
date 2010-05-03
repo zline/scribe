@@ -44,6 +44,23 @@ void watcher(zhandle_t *zzh, int type, int state,
     g_ZKClient->registerTask();
   }
 
+  // Reconnect if session expires. Note the Zookeeper C library retries in the
+  // case of connection timeouts, connection loss, etc. Only expired sessions
+  // require explicitly reconnecting.
+  else if ((state == ZOO_EXPIRED_SESSION_STATE) &&
+           (type == ZOO_SESSION_EVENT)) {
+    g_ZKClient->disconnect();
+    g_ZKClient->connect();
+  }
+
+  // The client library automatically reconnects, taking into account failed
+  // servers in the connection string, appropriately handling the "herd
+  // effect", etc.
+  else if ((state == ZOO_CONNECTING_STATE) &&
+           (type == ZOO_SESSION_EVENT)) {
+    LOG_OPER("Lost Zookeeper connection. Retrying.");
+  }
+
   // This should never happen.
   else {
     LOG_OPER("Received unhandled watch callback: %s %d %d", path, type, state);
@@ -69,6 +86,15 @@ void ZKClient::disconnect() {
   zh = NULL;
 }
 
+/*
+ * Register this scribe in Zookeeper at the registration prefix.
+ *
+ * Registration creates an ephemeral znode in ``host:port`` format, making this
+ * scribe eligible for discovery.
+ *
+ * Zookeeper ACLs are not supported at this time. If ACLs prevent registration
+ * we log that fact, close the connection, and do not retry.
+ */
 bool ZKClient::registerTask() {
   if (zkRegistrationPrefix.empty()) {
     return false;
@@ -102,15 +128,23 @@ bool ZKClient::registerTask() {
   } else if (ZNODEEXISTS == ret) {
     struct Stat stat;
     if (ZOK == zoo_exists(zh, zkFullRegistrationName.c_str(), 1, &stat)) {
-      LOG_OPER("Set watch on znode that already exists: %s", zkFullRegistrationName.c_str());
+      LOG_OPER("Set watch on znode that already exists: %s",
+               zkFullRegistrationName.c_str());
       return true;
     } else {
-      LOG_OPER("Failed setting watch on znode: %s", zkFullRegistrationName.c_str());
+      LOG_OPER("Failed setting watch on znode: %s",
+               zkFullRegistrationName.c_str());
       return false;
     }
+  } else if (ZINVALIDACL == ret) {
+    LOG_OPER("Failed registering in Zookeeper due to ACL! Disconnecting.");
+    disconnect();
+    return false;
+  } else {
+    LOG_OPER("Registration failed for unknown reason: %s",
+             zkFullRegistrationName.c_str());
+    return false;
   }
-  LOG_OPER("Registration failed for unknown reason: %s", zkFullRegistrationName.c_str());
-  return false;
 }
 
 // Get the best host:port to send messages to at this time.
