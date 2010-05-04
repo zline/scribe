@@ -44,7 +44,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   scribe::thrift::ResultCode Log(const std::vector<scribe::thrift::LogEntry>& messages);
 
-  void getVersion(std::string& _return) {_return = "2.1";}
+  void getVersion(std::string& _return) {_return = "2.2";}
   facebook::fb303::fb_status getStatus();
   void getStatusDetails(std::string& _return);
   void setStatus(facebook::fb303::fb_status new_status);
@@ -55,6 +55,15 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;
+
+
+  inline unsigned long long getMaxQueueSize() {
+    return maxQueueSize;
+  }
+  void incCounter(std::string category, std::string counter);
+  void incCounter(std::string category, std::string counter, long amount);
+  void incCounter(std::string counter);
+  void incCounter(std::string counter, long amount);
 
  private:
   unsigned long checkPeriod; // periodic check interval for all contained stores
@@ -80,7 +89,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   time_t lastMsgTime;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
-  unsigned long maxQueueSize;
+  unsigned long long maxQueueSize;
   bool newThreadPerCategory;
 
   /* mutex to syncronize access to scribeHandler.
@@ -113,7 +122,5 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void addMessage(const scribe::thrift::LogEntry& entry,
                   const boost::shared_ptr<store_list_t>& store_list);
 };
-
 extern boost::shared_ptr<scribeHandler> g_Handler;
-
 #endif // SCRIBE_SERVER_H
