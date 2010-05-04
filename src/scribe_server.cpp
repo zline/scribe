@@ -583,6 +583,13 @@ void scribeHandler::initialize() {
     config.getUnsignedLongLong("max_queue_size", maxQueueSize);
     config.getUnsigned("check_interval", checkPeriod);
 
+    if (config.getUnsigned("debug_level", debugLevel)) {
+      debugLevel = 1;
+      LOG_DEBUG("Scribe started in debug level %ld.", debugLevel);
+    } else {
+      debugLevel = 0;
+    }
+
     // If new_thread_per_category, then we will create a new thread/StoreQueue
     // for every unique message category seen.  Otherwise, we will just create
     // one thread for each top-level store defined in the config file.

@@ -30,7 +30,7 @@
  */
 
 /*
- * Debug logging
+ * Logging
  */
 #define LOG_OPER(format_string,...)                                     \
   {                                                                     \
@@ -41,6 +41,20 @@
     dbgtime[24] = '\0';                                                 \
     fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
   }
+
+extern int debugLevel;
+#define LOG_DEBUG(format_string,...)                                       \
+  {                                                                        \
+    if (debugLevel) {                                                      \
+      time_t now;                                                          \
+      char dbgtime[26];                                                    \
+      time(&now);                                                          \
+      ctime_r(&now, dbgtime);                                              \
+      dbgtime[24] = '\0';                                                  \
+      fprintf(stderr,"[%s] " #format_string " \n", dbgtime,##__VA_ARGS__); \
+    }                                                                      \
+  }
+
 
 /*
  * Network based configuration and directory service
