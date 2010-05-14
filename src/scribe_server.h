@@ -67,6 +67,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void incCounter(std::string category, std::string counter, long amount);
   void incCounter(std::string counter);
   void incCounter(std::string counter, long amount);
+  void setCounter(std::string counter, long amount);
 
   inline void setServer(
       boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {

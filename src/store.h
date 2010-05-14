@@ -394,6 +394,7 @@ class NetworkStore : public Store {
   long int timeout;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
+  long int msgThresholdBeforeReconnect; // long because it works with config code
   std::string serviceName;
   std::string serviceOptions;
   server_vector_t servers;
