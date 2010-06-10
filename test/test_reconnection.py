@@ -71,35 +71,46 @@ class TestReconnection(unittest.TestCase):
 
         return fb303_client, scribe_client, transport
 
-    def sendMessages(self, nb):
+    def sendMessages(self, category, nb):
         msgs = []
         for i in range(nb):
-            msgs.append(scribe.LogEntry("TestReconnection", "This is message " + str(i)))
+            msgs.append(scribe.LogEntry(category, "This is message " + str(i)))
         self.scribe_client.Log(messages=msgs)
         # Throttle to make sure messages go all the way through and counters are updated
         time.sleep(2)
 
     def totalSentMsgs(self):
-        countersString = str(self.fb303_client.getCounters())
+        countersString = self.getCountersString()
         return int(eval(countersString)['scribe_overall:sent'])
 
     def sentMsgsBetweenReconnect(self):
-        countersString = str(self.fb303_client.getCounters())
+        countersString = self.getCountersString()
         return int(eval(countersString)['scribe_overall:sent since last reconnect'])
 
+    def getCountersString(self):
+        return str(self.fb303_client.getCounters())
+
     def test_reconnect(self):
-        self.sendMessages(3)
-        self.assertEqual(3, self.totalSentMsgs())
-        self.assertEqual(3, self.sentMsgsBetweenReconnect())
+        category1 = "Category 1"
+        category2 = "Category 2"
 
-        self.sendMessages(3)
-        self.assertEqual(6, self.totalSentMsgs())
+        self.sendMessages(category1, 3)
+        self.assertEqual(3, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(3, self.sentMsgsBetweenReconnect(), self.getCountersString())
+
+        self.sendMessages(category2, 1)
+        self.assertEqual(4, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(4, self.sentMsgsBetweenReconnect(), self.getCountersString())
+
+        self.sendMessages(category1, 3)
+        self.assertEqual(7, totalSentMsgs(), self.getCountersString())
         # The connection is reset after the full bucket of messages has been sent, hence the 0
-        self.assertEqual(0, self.sentMsgsBetweenReconnect())
+        self.assertEqual(0, self.sentMsgsBetweenReconnect(), self.getCountersString())
 
-        self.sendMessages(1)
-        self.assertEqual(7, self.totalSentMsgs())
-        self.assertEqual(1, self.sentMsgsBetweenReconnect())
+        self.sendMessages(category1, 2)
+        self.sendMessages(category2, 2)
+        self.assertEqual(11, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(4, self.sentMsgsBetweenReconnect(), self.getCountersString())
 
 if __name__ == '__main__':
     unittest.main()
