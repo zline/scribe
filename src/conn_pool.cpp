@@ -224,17 +224,6 @@ bool scribeConn::open() {
     socket->setConnTimeout(timeout);
     socket->setRecvTimeout(timeout);
     socket->setSendTimeout(timeout);
-    /*
-     * We don't want to send resets to close the connection. Among
-     * other badness it also reduces data reliability. On getting a
-     * rest, the receiving socket will throw any data the receving
-     * process has not yet read.
-     *
-     * echo 5 > /proc/sys/net/ipv4/tcp_fin_timeout to set the TIME_WAIT
-     * timeout on a system.
-     * sysctl -a | grep tcp
-     */
-    socket->setLinger(0, 0);
 
     /* Turn off SO_LINGER (rely on the TCP stack in the kernel to do the right
      * thing on close()).
