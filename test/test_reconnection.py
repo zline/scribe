@@ -83,9 +83,9 @@ class TestReconnection(unittest.TestCase):
         countersString = self.getCountersString()
         return int(eval(countersString)['scribe_overall:sent'])
 
-    def sentMsgsBetweenReconnect(self):
+    def numberOfReconnections(self):
         countersString = self.getCountersString()
-        return int(eval(countersString)['scribe_overall:sent since last reconnect'])
+        return int(eval(countersString)['scribe_overall:number of reconnections'])
 
     def getCountersString(self):
         return str(self.fb303_client.getCounters())
@@ -96,21 +96,26 @@ class TestReconnection(unittest.TestCase):
 
         self.sendMessages(category1, 3)
         self.assertEqual(3, self.totalSentMsgs(), self.getCountersString())
-        self.assertEqual(3, self.sentMsgsBetweenReconnect(), self.getCountersString())
 
         self.sendMessages(category2, 1)
         self.assertEqual(4, self.totalSentMsgs(), self.getCountersString())
-        self.assertEqual(4, self.sentMsgsBetweenReconnect(), self.getCountersString())
 
         self.sendMessages(category1, 3)
-        self.assertEqual(7, totalSentMsgs(), self.getCountersString())
-        # The connection is reset after the full bucket of messages has been sent, hence the 0
-        self.assertEqual(0, self.sentMsgsBetweenReconnect(), self.getCountersString())
+        self.assertEqual(7, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(1, self.numberOfReconnections(), self.getCountersString())
 
         self.sendMessages(category1, 2)
         self.sendMessages(category2, 2)
         self.assertEqual(11, self.totalSentMsgs(), self.getCountersString())
-        self.assertEqual(4, self.sentMsgsBetweenReconnect(), self.getCountersString())
+        self.assertEqual(1, self.numberOfReconnections(), self.getCountersString())
+
+        self.sendMessages(category1, 4)
+        self.assertEqual(15, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(2, self.numberOfReconnections(), self.getCountersString())
+
+        self.sendMessages(category2, 5)
+        self.assertEqual(20, self.totalSentMsgs(), self.getCountersString())
+        self.assertEqual(3, self.numberOfReconnections(), self.getCountersString())
 
 if __name__ == '__main__':
     unittest.main()

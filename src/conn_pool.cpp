@@ -258,10 +258,6 @@ bool scribeConn::open() {
     if (serviceBased) {
       remoteHost = socket->getPeerHost();
     }
-
-    // Reset counter for number of messages sent between two reconnections
-    sentSinceLastReconnect = 0;
-    g_Handler->setCounter(SENT_SINCE_LAST_RECONNECT, sentSinceLastReconnect);
   } catch (const TTransportException& ttx) {
     LOG_OPER("failed to open connection to remote scribe server %s thrift error <%s>",
              connectionString().c_str(), ttx.what());
@@ -307,6 +303,9 @@ void scribeConn::reopenConnectionIfNeeded() {
 
     if (!isOpen()) {
       open();
+      // Reset counter for number of messages sent between two reconnections
+      sentSinceLastReconnect = 0;
+      g_Handler->incCounter(NUMBER_OF_RECONNECTS, 1);
     } else {
       LOG_OPER("Cannot re-open the connection with %s, connection seems open already",
               connectionString().c_str());
@@ -341,7 +340,6 @@ scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
     if (result == OK) {
       sentSinceLastReconnect += size;
       g_Handler->incCounter("sent", size);
-      g_Handler->incCounter(SENT_SINCE_LAST_RECONNECT, size);
       LOG_OPER("Successfully sent <%d> messages to remote scribe server %s (<%ld> since last reconnection)",
           size, connectionString().c_str(), sentSinceLastReconnect);
       reopenConnectionIfNeeded();

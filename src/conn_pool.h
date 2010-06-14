@@ -29,8 +29,8 @@
 #define CONN_OK           (0)  /* success */
 #define CONN_TRANSIENT    (1)  /* transient error */
 
-// Number of messages sent between two reconnections
-#define SENT_SINCE_LAST_RECONNECT "sent since last reconnect"
+// Number of times we re-opened the connection
+#define NUMBER_OF_RECONNECTS "number of reconnections"
 
 // Basic scribe class to manage network connections. Used by network store
 
