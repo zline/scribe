@@ -55,6 +55,9 @@ endif
 if USE_ZOOKEEPER
   EXTERNAL_LIBS += -lzookeeper_mt
 endif
+if USE_TCMALLOC
+  EXTERNAL_LIBS += -ltcmalloc
+endif
 
 # Section 2 ############################################################################
 # Set common flags recognized by automake.
