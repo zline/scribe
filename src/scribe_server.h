@@ -62,7 +62,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void setStatus(facebook::fb303::fb_status new_status);
   void setStatusDetails(const std::string& new_status_details);
   void writeCountersToZooKeeper();
-  void getCountersForAllHostsFromZooKeeper(host_counters_map_t& host_counters_map);
+  void getCountersForAllHostsFromZooKeeper(std::string& parentZnode, host_counters_map_t& host_counters_map);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
 
@@ -91,6 +91,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   std::string statusDetails;
   apache::thrift::concurrency::Mutex statusLock;
   time_t lastMsgTime;
+  time_t lastWriteCountersTime;
+  int64_t lastBytesReceived;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
   unsigned long long maxQueueSize;

@@ -128,9 +128,9 @@ bool ZKClient::updateStatus(std::string& current_status) {
   return rc == 0;
 }
 
-bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
+bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
   struct String_vector children;
-  if (zoo_get_children(zh, zkRegistrationPrefix.c_str(), 0, &children) != ZOK || children.count == 0) {
+  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
 	return false;
   }
   char buffer[512];

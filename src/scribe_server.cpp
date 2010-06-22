@@ -44,6 +44,10 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     1
+#define DEFAULT_UPDATE_STATUS_INTERVAL  1
+
+static string bytes_received_stat_name = "bytes_recevied_good";
+static string bytes_received_rate_stat_name = "bytes_received_rate";
 
 static string log_separator = ":";
 
@@ -174,6 +178,8 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     configFilename(config_file),
     status(STARTING),
     statusDetails("initial state"),
+    lastWriteCountersTime(0),
+    lastBytesReceived(0),
     numMsgLastSecond(0),
     maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
     maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
@@ -222,6 +228,10 @@ void scribeHandler::setStatus(fb_status new_status) {
 }
 
 void scribeHandler::writeCountersToZooKeeper() {
+  time_t now;
+  time(&now);
+  if (now - lastWriteCountersTime < DEFAULT_UPDATE_STATUS_INTERVAL)
+    return;
   incCounter("write counters to zookeeper");
   counter_map_t counters_map;
   getCounters(counters_map);
@@ -233,14 +243,23 @@ void scribeHandler::writeCountersToZooKeeper() {
     all_counters_string += it->first + ":" + buffer + "\n";
   }
   g_ZKClient->registerTask();   // TODO(wanli): remove this
+  int64_t bytes_received = getCounter(bytes_received_rate_stat_name);
+  int64_t bytes_received_rate = 0;
+  if (lastBytesReceived > 0 && bytes_received > lastBytesReceived) {
+    bytes_received_rate = (bytes_received - lastBytesReceived) / (now - lastWriteCountersTime);
+  }
+  setCounter(bytes_received_rate_stat_name, bytes_received_rate);
+  lastBytesReceived = bytes_received;
+  lastWriteCountersTime = now;
 
   LOG_DEBUG("writeCountersToZooKeeper: %s", all_counters_string.c_str());
   g_ZKClient->updateStatus(all_counters_string);
 }
 
-void scribeHandler::getCountersForAllHostsFromZooKeeper(host_counters_map_t& host_counters_map) {
+void scribeHandler::getCountersForAllHostsFromZooKeeper(std::string& parentZnode, host_counters_map_t& host_counters_map) {
+  // TODO(wanli): fix the path to read the file
   ZKClient::HostStatusMap host_status_map;
-  g_ZKClient->getAllHostsStatus(&host_status_map);
+  g_ZKClient->getAllHostsStatus(parentZnode, &host_status_map);
   LOG_OPER("getCountersForAllHostsFromZooKeeper");
   for (ZKClient::HostStatusMap::iterator iter = host_status_map.begin();
        iter != host_status_map.end(); ++iter) {
@@ -536,6 +555,9 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     // Log this message
     addMessage(*msg_iter, store_list);
+
+    // TODO(wanli): move this to a different thread
+    writeCountersToZooKeeper(); 
   }
 
   result = OK;
@@ -770,8 +792,12 @@ void scribeHandler::initialize() {
     setStatus(ALIVE);
   }
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+  sleep(10);
+  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+  sleep(10);
+  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
   host_counters_map_t host_counters_map;
-  getCountersForAllHostsFromZooKeeper(host_counters_map); // TODO(wanli): remove this
+  getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
 }
 
 
