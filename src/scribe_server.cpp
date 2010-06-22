@@ -220,6 +220,25 @@ void scribeHandler::setStatus(fb_status new_status) {
   status = new_status;
 }
 
+void scribeHandler::writeCountersToZooKeeper() {
+  std::map<std::string, int64_t> counters_map;
+  getCounters(counters_map);
+  std:string all_counters_string;
+  char buffer[100];
+  for (std::map<std::string, int64_t>::iterator it = counters_map.begin();
+       it != counters_map.end(); ++it) {
+    sprintf(buffer, "%lld", it->second);
+    all_counters_string += it->first + ":" + buffer + "\n";
+  }
+  g_ZKClient->registerTask();   // TODO(wanli): remove this
+
+  LOG_DEBUG("writeCountersToZooKeeper: %s", all_counters_string.c_str());
+  g_ZKClient->updateStatus(all_counters_string);
+
+  ZKClient::HostStatusMap host_status_map;  // TODO(wanli): remove this
+  g_ZKClient->getAllHostsStatus(&host_status_map); // TODO(wanli): remove this
+}
+
 // Returns the handler status details if non-empty,
 // otherwise the first non-empty store status found
 void scribeHandler::getStatusDetails(std::string& _return) {
@@ -622,6 +641,7 @@ void scribeHandler::initialize() {
     }
 
 #ifdef USE_ZOOKEEPER
+    setStatusDetails("initialize ZKClient");
     if (!g_ZKClient) {
       LOG_DEBUG("Creating new ZKClient.");
       g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
@@ -650,6 +670,7 @@ void scribeHandler::initialize() {
         !g_ZKClient->zh) {
       // Only connect at this time if we register ourself. If needed,
       // we connect+disconnect when discovering remote_host.
+      LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>", g_ZKClient->zkServer.c_str(), g_ZKClient->zkRegistrationPrefix.c_str())
       g_ZKClient->connect();
     }
 #endif
@@ -730,6 +751,10 @@ void scribeHandler::initialize() {
     setStatusDetails("");
     setStatus(ALIVE);
   }
+  incCounter("denied for rate"); // TODO(wanli): remove this
+  incCounter("test test test");  // TODO(wanli): remove this
+  incCounter("denied for rate"); // TODO(wanli): remove this
+  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
 }
 
 

@@ -89,10 +89,11 @@ bool ZKClient::registerTask() {
   char tmp[0];
 
   // Prefixs are created as regular znodes.
+  // TODO(wanli): skip this if the file already exists
   while (index < string::npos) {
     index = zkRegistrationPrefix.find("/", index+1);
     string prefix = zkRegistrationPrefix.substr(0, index);
-    zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
+    int ret = zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
                &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
   }
 
@@ -100,6 +101,7 @@ bool ZKClient::registerTask() {
   int ret = zoo_create(zh, zkFullRegistrationName.c_str(), contents.c_str(),
                        contents.length(), &ZOO_CREATOR_ALL_ACL,
                        ZOO_EPHEMERAL, tmp, sizeof(tmp));
+
   if (ZOK == ret) {
     return true;
   } else if (ZNODEEXISTS == ret) {
@@ -114,6 +116,37 @@ bool ZKClient::registerTask() {
   }
   LOG_OPER("Registration failed for unknown reason: %s", zkFullRegistrationName.c_str());
   return false;
+}
+
+bool ZKClient::updateStatus(std::string& current_status) {
+  int rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(), current_status.length() + 1, -1);
+  if (rc) {
+	LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
+  } else {
+	LOG_OPER("Write %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
+  }
+  return rc == 0;
+}
+
+bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
+  struct String_vector children;
+  if (zoo_get_children(zh, zkRegistrationPrefix.c_str(), 0, &children) != ZOK || children.count == 0) {
+	return false;
+  }
+  char buffer[512];
+  int allocated_buflen = sizeof(buffer);
+  for (int i = 0; i < children.count; ++i) {
+	int buflen = allocated_buflen;
+	std::string zk_file_path = zkRegistrationPrefix + "/" + children.data[i];
+	int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
+    if (rc) {
+      LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
+    } else {
+	  LOG_OPER("ZK file %s content: %s", zk_file_path.c_str(), buffer);
+	  (*host_status_map)[zk_file_path] = buffer;
+    }
+  }
+  return true;
 }
 
 // Get the best host:port to send messages to at this time.
@@ -141,7 +174,7 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
     ret = false;
   } else {
     // Choose a random scribe.
-    srand(time(NULL));
+    // srand(time(NULL));
     int remoteScribeIndex = rand() % children.count;
 
     string remoteScribeZnode = children.data[remoteScribeIndex];

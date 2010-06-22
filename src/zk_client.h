@@ -29,12 +29,16 @@ void watcher(zhandle_t *zzh, int type, int state,
 
 class ZKClient {
  public:
+   typedef std::map<std::string, std::string> HostStatusMap;
+
    ZKClient();
    virtual ~ZKClient();
 
    void connect();
    void disconnect();
    bool registerTask();
+   bool updateStatus(std::string& current_status);
+   bool getAllHostsStatus(HostStatusMap* host_status_map);
    bool getRemoteScribe(std::string& parentZnode,
                         std::string& remoteHost,
                         unsigned long& remotePort);
