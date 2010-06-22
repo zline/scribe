@@ -792,9 +792,9 @@ void scribeHandler::initialize() {
     setStatus(ALIVE);
   }
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-  sleep(10);
+  sleep(2);
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-  sleep(10);
+  sleep(2);
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
   host_counters_map_t host_counters_map;
   getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
