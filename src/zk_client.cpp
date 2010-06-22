@@ -6,7 +6,7 @@
 //
 //  Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS,
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.`
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
@@ -29,7 +29,7 @@ shared_ptr<ZKClient> g_ZKClient;
  * Global Zookeeper watcher handles all callbacks.
  */
 void watcher(zhandle_t *zzh, int type, int state,
-             const char *path, void *watcherCtx) {
+    const char *path, void *watcherCtx) {
 
   // Zookeeper session established so attempt registration.
   if ((state == ZOO_CONNECTED_STATE) &&
@@ -39,8 +39,8 @@ void watcher(zhandle_t *zzh, int type, int state,
 
   // Registration znode was deleted so attempt registration.
   else if ((state == ZOO_CONNECTED_STATE) &&
-           (type == ZOO_DELETED_EVENT) &&
-           (lexical_cast<string>(path) == g_ZKClient->zkFullRegistrationName)) {
+      (type == ZOO_DELETED_EVENT) &&
+      (lexical_cast<string>(path) == g_ZKClient->zkFullRegistrationName)) {
     g_ZKClient->registerTask();
   }
 
@@ -50,8 +50,9 @@ void watcher(zhandle_t *zzh, int type, int state,
   }
 }
 
-ZKClient::ZKClient() {
+ZKClient::ZKClient(scribeHandler* scribeHandlerObj_) {
   zh = NULL;
+  scribeHandlerObj = scribeHandlerObj_;
   if (debug_level) {
     zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
   }
@@ -94,13 +95,13 @@ bool ZKClient::registerTask() {
     index = zkRegistrationPrefix.find("/", index+1);
     string prefix = zkRegistrationPrefix.substr(0, index);
     int ret = zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
-               &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
+        &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
   }
 
   // Register this scribe as an ephemeral node.
   int ret = zoo_create(zh, zkFullRegistrationName.c_str(), contents.c_str(),
-                       contents.length(), &ZOO_CREATOR_ALL_ACL,
-                       ZOO_EPHEMERAL, tmp, sizeof(tmp));
+      contents.length(), &ZOO_CREATOR_ALL_ACL,
+      ZOO_EPHEMERAL, tmp, sizeof(tmp));
 
   if (ZOK == ret) {
     return true;
@@ -121,9 +122,9 @@ bool ZKClient::registerTask() {
 bool ZKClient::updateStatus(std::string& current_status) {
   int rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(), current_status.length() + 1, -1);
   if (rc) {
-	LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
+    LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
   } else {
-	LOG_OPER("Write %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
+    LOG_OPER("Write %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
   }
   return rc == 0;
 }
@@ -131,14 +132,14 @@ bool ZKClient::updateStatus(std::string& current_status) {
 bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
   struct String_vector children;
   if (zoo_get_children(zh, zkRegistrationPrefix.c_str(), 0, &children) != ZOK || children.count == 0) {
-	return false;
+    return false;
   }
   char buffer[512];
   int allocated_buflen = sizeof(buffer);
   for (int i = 0; i < children.count; ++i) {
-	int buflen = allocated_buflen;
-	std::string zk_file_path = zkRegistrationPrefix + "/" + children.data[i];
-	int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
+    int buflen = allocated_buflen;
+    std::string zk_file_path = zkRegistrationPrefix + "/" + children.data[i];
+    int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
     if (rc) {
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
@@ -152,8 +153,8 @@ bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
 
 // Get the best host:port to send messages to at this time.
 bool ZKClient::getRemoteScribe(string& parentZnode,
-                               string& remoteHost,
-                               unsigned long& remotePort) {
+    string& remoteHost,
+    unsigned long& remotePort) {
   bool ret = false;
   bool should_disconnect = false;
   if (zkServer.empty()) {
@@ -174,13 +175,12 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
   } else if (0 == children.count) {
     ret = false;
   } else {
-    // Choose a random scribe.
-    // srand(time(NULL));
-    int remoteScribeIndex = rand() % children.count;
+    selectScribeAggregator();
+    //string remoteScribeZnode = selectScribeAggregator();
 
-    string remoteScribeZnode = children.data[remoteScribeIndex];
-    string delimiter = ":";
-    size_t index = remoteScribeZnode.find(delimiter);
+    // delete this
+    string remoteScribeZnode = children.data[rand() % children.count];
+    size_t index = remoteScribeZnode.find(":");
 
     remoteHost = remoteScribeZnode.substr(0, index);
     string port = remoteScribeZnode.substr(index+1, string::npos);
@@ -192,4 +192,17 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
     disconnect();
   }
   return ret;
+}
+
+bool ZKClient::selectScribeAggregator() {
+  host_counters_map_t host_counters_map;
+  scribeHandlerObj->getCountersForAllHostsFromZooKeeper(host_counters_map);
+  for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
+    LOG_OPER("%s -->", iter->first.c_str());
+    for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
+      LOG_OPER("\t %s --> %lld", counterIter->first.c_str(), counterIter->second);
+    }
+  }
+
+  return true;
 }

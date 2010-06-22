@@ -662,7 +662,7 @@ void scribeHandler::initialize() {
     setStatusDetails("initialize ZKClient");
     if (!g_ZKClient) {
       LOG_DEBUG("Creating new ZKClient.");
-      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
+      g_ZKClient = shared_ptr<ZKClient> (new ZKClient(this));
     }
 
     // Disconnect if already connected to clear previous state.
