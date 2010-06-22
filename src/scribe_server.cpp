@@ -23,6 +23,7 @@
 
 int debug_level = 0;
 #include "common.h"
+#include <boost/tokenizer.hpp>
 #include "scribe_server.h"
 
 using namespace apache::thrift;
@@ -221,11 +222,11 @@ void scribeHandler::setStatus(fb_status new_status) {
 }
 
 void scribeHandler::writeCountersToZooKeeper() {
-  std::map<std::string, int64_t> counters_map;
+  counter_map_t counters_map;
   getCounters(counters_map);
-  std:string all_counters_string;
+  std::string all_counters_string;
   char buffer[100];
-  for (std::map<std::string, int64_t>::iterator it = counters_map.begin();
+  for (counter_map_t::iterator it = counters_map.begin();
        it != counters_map.end(); ++it) {
     sprintf(buffer, "%lld", it->second);
     all_counters_string += it->first + ":" + buffer + "\n";
@@ -234,9 +235,25 @@ void scribeHandler::writeCountersToZooKeeper() {
 
   LOG_DEBUG("writeCountersToZooKeeper: %s", all_counters_string.c_str());
   g_ZKClient->updateStatus(all_counters_string);
+}
 
-  ZKClient::HostStatusMap host_status_map;  // TODO(wanli): remove this
-  g_ZKClient->getAllHostsStatus(&host_status_map); // TODO(wanli): remove this
+void scribeHandler::getCountersForAllHostsFromZooKeeper(host_counters_map_t& host_counters_map) {
+  ZKClient::HostStatusMap host_status_map;
+  g_ZKClient->getAllHostsStatus(&host_status_map);
+  LOG_OPER("getCountersForAllHostsFromZooKeeper");
+  for (ZKClient::HostStatusMap::iterator iter = host_status_map.begin();
+       iter != host_status_map.end(); ++iter) {
+    typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
+    boost::char_separator<char> sep("\n");
+    tokenizer tokens(iter->second, sep);
+    for (tokenizer::iterator tok_iter = tokens.begin(); tok_iter != tokens.end(); ++tok_iter) {
+      string::size_type pos = tok_iter->find_first_of(":");
+      std::string counter_name = tok_iter->substr(0, pos);
+      std::string counter_value = tok_iter->substr(pos + 1);
+      host_counters_map[iter->first][counter_name] = atoll(counter_value.c_str());
+      LOG_OPER("set %s %s => %lld", iter->first.c_str(), counter_name.c_str(), host_counters_map[iter->first][counter_name]); 
+    }
+  }
 }
 
 // Returns the handler status details if non-empty,
@@ -755,6 +772,8 @@ void scribeHandler::initialize() {
   incCounter("test test test");  // TODO(wanli): remove this
   incCounter("denied for rate"); // TODO(wanli): remove this
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+  host_counters_map_t host_counters_map;
+  getCountersForAllHostsFromZooKeeper(host_counters_map); // TODO(wanli): remove this
 }
 
 

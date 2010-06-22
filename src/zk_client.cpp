@@ -142,8 +142,9 @@ bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
     if (rc) {
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
-	  LOG_OPER("ZK file %s content: %s", zk_file_path.c_str(), buffer);
-	  (*host_status_map)[zk_file_path] = buffer;
+      string content = buffer;
+      LOG_OPER("ZK file %s size: %d content: %s", zk_file_path.c_str(), content.length(), content.c_str());
+      (*host_status_map)[zk_file_path] = content;
     }
   }
   return true;

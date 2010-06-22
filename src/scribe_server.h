@@ -33,6 +33,8 @@
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
 typedef std::map<std::string, boost::shared_ptr<StoreQueue> > category_prefix_map_t;
+typedef std::map<std::string, int64_t> counter_map_t;
+typedef std::map<std::string, counter_map_t> host_counters_map_t;
 
 std::string resultCodeToString(scribe::thrift::ResultCode rc);
 
@@ -60,6 +62,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void setStatus(facebook::fb303::fb_status new_status);
   void setStatusDetails(const std::string& new_status_details);
   void writeCountersToZooKeeper();
+  void getCountersForAllHostsFromZooKeeper(host_counters_map_t& host_counters_map);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
 
