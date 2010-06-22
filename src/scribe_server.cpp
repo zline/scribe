@@ -222,6 +222,7 @@ void scribeHandler::setStatus(fb_status new_status) {
 }
 
 void scribeHandler::writeCountersToZooKeeper() {
+  incCounter("write counters to zookeeper");
   counter_map_t counters_map;
   getCounters(counters_map);
   std::string all_counters_string;
@@ -768,9 +769,6 @@ void scribeHandler::initialize() {
     setStatusDetails("");
     setStatus(ALIVE);
   }
-  incCounter("denied for rate"); // TODO(wanli): remove this
-  incCounter("test test test");  // TODO(wanli): remove this
-  incCounter("denied for rate"); // TODO(wanli): remove this
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
   host_counters_map_t host_counters_map;
   getCountersForAllHostsFromZooKeeper(host_counters_map); // TODO(wanli): remove this
