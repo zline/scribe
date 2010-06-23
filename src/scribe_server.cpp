@@ -96,11 +96,11 @@ int main(int argc, char **argv) {
     int next_option;
     const char* const short_options = "hdp:c:";
     const struct option long_options[] = {
-      { "help",   0, NULL, 'h' },
-      { "debug",  0, NULL, 'd' },
-      { "port",   0, NULL, 'p' },
-      { "config", 0, NULL, 'c' },
-      { NULL,     0, NULL, 'o' },
+        { "help",   0, NULL, 'h' },
+        { "debug",  0, NULL, 'd' },
+        { "port",   0, NULL, 'p' },
+        { "config", 0, NULL, 'c' },
+        { NULL,     0, NULL, 'o' },
     };
 
     unsigned long int port = 0;  // this can also be specified in the conf file, which overrides the command line
@@ -139,14 +139,14 @@ int main(int argc, char **argv) {
     shared_ptr<TProcessor> processor(new scribeProcessor(g_Handler));
     /* This factory is for binary compatibility. */
     shared_ptr<TProtocolFactory>
-      binaryProtocolFactory(new TBinaryProtocolFactory(0, 0, false, false));
+    binaryProtocolFactory(new TBinaryProtocolFactory(0, 0, false, false));
     shared_ptr<ThreadManager> thread_manager;
 
     shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
     if (g_Handler->numThriftServerThreads > 1) {
       // create a ThreadManager to process incoming calls
       thread_manager = ThreadManager::
-        newSimpleThreadManager(g_Handler->numThriftServerThreads);
+          newSimpleThreadManager(g_Handler->numThriftServerThreads);
 
       thread_manager->threadFactory(thread_factory);
       thread_manager->start();
@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
     timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 
     TNonblockingServer server(processor, binaryProtocolFactory,
-                              g_Handler->port, thread_manager);
+        g_Handler->port, thread_manager);
 
     LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
     fflush(stderr);
@@ -176,21 +176,21 @@ int main(int argc, char **argv) {
 }
 
 scribeHandler::scribeHandler(unsigned long int server_port, const std::string& config_file)
-  : FacebookBase("Scribe"),
-    port(server_port),
-    numThriftServerThreads(DEFAULT_SERVER_THREADS),
-    checkPeriod(DEFAULT_CHECK_PERIOD),
-    pcategories(NULL),
-    pcategory_prefixes(NULL),
-    configFilename(config_file),
-    status(STARTING),
-    statusDetails("initial state"),
-    lastWriteCountersTime(0),
-    lastBytesReceived(0),
-    numMsgLastSecond(0),
-    maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
-    maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
-    newThreadPerCategory(true) {
+: FacebookBase("Scribe"),
+  port(server_port),
+  numThriftServerThreads(DEFAULT_SERVER_THREADS),
+  checkPeriod(DEFAULT_CHECK_PERIOD),
+  pcategories(NULL),
+  pcategory_prefixes(NULL),
+  configFilename(config_file),
+  status(STARTING),
+  statusDetails("initial state"),
+  lastWriteCountersTime(0),
+  lastBytesReceived(0),
+  numMsgLastSecond(0),
+  maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
+  maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
+  newThreadPerCategory(true) {
   time(&lastMsgTime);
 }
 
@@ -214,8 +214,8 @@ fb_status scribeHandler::getStatus() {
         cat_iter != pcategories->end();
         ++cat_iter) {
       for (store_list_t::iterator store_iter = cat_iter->second->begin();
-           store_iter != cat_iter->second->end();
-           ++store_iter)
+          store_iter != cat_iter->second->end();
+          ++store_iter)
       {
         if (!(*store_iter)->getStatus().empty())
         {
@@ -245,7 +245,7 @@ void scribeHandler::writeCountersToZooKeeper() {
   std::string all_counters_string;
   char buffer[100];
   for (counter_map_t::iterator it = counters_map.begin();
-       it != counters_map.end(); ++it) {
+      it != counters_map.end(); ++it) {
     sprintf(buffer, "%lld", it->second);
     all_counters_string += it->first + ":" + buffer + "\n";
   }
@@ -269,7 +269,7 @@ void scribeHandler::getCountersForAllHostsFromZooKeeper(std::string& parentZnode
   g_ZKClient->getAllHostsStatus(parentZnode, &host_status_map);
   LOG_OPER("getCountersForAllHostsFromZooKeeper");
   for (ZKClient::HostStatusMap::iterator iter = host_status_map.begin();
-       iter != host_status_map.end(); ++iter) {
+      iter != host_status_map.end(); ++iter) {
     typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
     boost::char_separator<char> sep("\n");
     tokenizer tokens(iter->second, sep);
@@ -337,7 +337,7 @@ const char* scribeHandler::statusAsString(fb_status status) {
 
 // Should be called while holding a writeLock on scribeHandlerLock
 bool scribeHandler::createCategoryFromModel(
-  const string &category, const boost::shared_ptr<StoreQueue> &model) {
+    const string &category, const boost::shared_ptr<StoreQueue> &model) {
 
   if ((pcategories == NULL) ||
       (pcategories->find(category) != pcategories->end())) {
@@ -345,7 +345,7 @@ bool scribeHandler::createCategoryFromModel(
   }
 
   LOG_OPER("[%s] Creating new category from model %s", category.c_str(),
-           model->getCategoryHandled().c_str());
+      model->getCategoryHandled().c_str());
 
   // Make sure the category name is sane.
   try {
@@ -374,7 +374,7 @@ bool scribeHandler::createCategoryFromModel(
   }
 
   shared_ptr<store_list_t> pstores =
-    shared_ptr<store_list_t>(new store_list_t);
+      shared_ptr<store_list_t>(new store_list_t);
 
   (*pcategories)[category] = pstores;
   pstores->push_back(pstore);
@@ -409,15 +409,15 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   unsigned long long max_count = 0;
   unsigned long long queue_size = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
-       cat_iter != pcategories->end();
-       ++cat_iter) {
+      cat_iter != pcategories->end();
+      ++cat_iter) {
     shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
       throw std::logic_error("throttle check: iterator in category map holds null pointer");
     }
     for (store_list_t::iterator store_iter = pstores->begin();
-         store_iter != pstores->end();
-         ++store_iter) {
+        store_iter != pstores->end();
+        ++store_iter) {
       if (*store_iter == NULL) {
         throw std::logic_error("throttle check: iterator in store map holds null pointer");
       } else {
@@ -444,7 +444,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
 
 // Should be called while holding a writeLock on scribeHandlerLock
 shared_ptr<store_list_t> scribeHandler::createNewCategory(
-  const string& category) {
+    const string& category) {
 
   shared_ptr<store_list_t> store_list;
 
@@ -462,7 +462,7 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
         store_list = cat_iter->second;
       } else {
         LOG_OPER("failed to create new prefix store for category <%s>",
-                 category.c_str());
+            category.c_str());
       }
 
       break;
@@ -481,7 +481,7 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
         store_list = cat_iter->second;
       } else {
         LOG_OPER("failed to create new default store for category <%s>",
-                 category.c_str());
+            category.c_str());
       }
     }
   }
@@ -491,15 +491,15 @@ shared_ptr<store_list_t> scribeHandler::createNewCategory(
 
 // Add this message to every store in list
 void scribeHandler::addMessage(
-  const LogEntry& entry,
-  const shared_ptr<store_list_t>& store_list) {
+    const LogEntry& entry,
+    const shared_ptr<store_list_t>& store_list) {
 
   int numstores = 0;
 
   // Add message to store_list
   for (store_list_t::iterator store_iter = store_list->begin();
-       store_iter != store_list->end();
-       ++store_iter) {
+      store_iter != store_list->end();
+      ++store_iter) {
     ++numstores;
     boost::shared_ptr<LogEntry> ptr(new LogEntry);
     ptr->category = entry.category;
@@ -527,8 +527,8 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
   }
 
   for (vector<LogEntry>::const_iterator msg_iter = messages.begin();
-       msg_iter != messages.end();
-       ++msg_iter) {
+      msg_iter != messages.end();
+      ++msg_iter) {
 
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
@@ -573,7 +573,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
   result = OK;
 
- end:
+  end:
   scribeHandlerLock.release();
   return result;
 }
@@ -597,7 +597,7 @@ bool scribeHandler::throttleDeny(int num_messages) {
 
   if (numMsgLastSecond + num_messages > maxMsgPerSecond) {
     LOG_OPER("throttle denying request with <%d> messages. It would exceed max of <%lu> messages this second",
-           num_messages, maxMsgPerSecond);
+        num_messages, maxMsgPerSecond);
     return true;
   } else {
     numMsgLastSecond += num_messages;
@@ -695,7 +695,7 @@ void scribeHandler::initialize() {
     setStatusDetails("initialize ZKClient");
     if (!g_ZKClient) {
       LOG_DEBUG("Creating new ZKClient.");
-      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
+      g_ZKClient = shared_ptr<ZKClient> (new ZKClient(this));
     }
 
     // Disconnect if already connected to clear previous state.
@@ -713,7 +713,6 @@ void scribeHandler::initialize() {
     if (!config.getString("zk_registration_prefix", g_ZKClient->zkRegistrationPrefix)) {
       g_ZKClient->zkRegistrationPrefix.clear();
     }
-
     g_ZKClient->scribeHandlerPort = g_Handler->port;
 
     if (!g_ZKClient->zkServer.empty() &&
@@ -722,7 +721,7 @@ void scribeHandler::initialize() {
       // Only connect at this time if we register ourself. If needed,
       // we connect+disconnect when discovering remote_host.
       LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>", g_ZKClient->zkServer.c_str(), g_ZKClient->zkRegistrationPrefix.c_str())
-      g_ZKClient->connect();
+          g_ZKClient->connect();
     }
 #endif
 
@@ -733,7 +732,7 @@ void scribeHandler::initialize() {
 
       if (numThriftServerThreads <= 0) {
         LOG_OPER("invalid value for num_thrift_server_threads: %lu",
-                 num_threads);
+            num_threads);
         throw runtime_error("invalid value for num_thrift_server_threads");
       }
     }
@@ -744,15 +743,15 @@ void scribeHandler::initialize() {
     std::vector<pStoreConf> store_confs;
     config.getAllStores(store_confs);
     for (std::vector<pStoreConf>::iterator iter = store_confs.begin();
-         iter != store_confs.end();
-         ++iter) {
-        pStoreConf store_conf = (*iter);
+        iter != store_confs.end();
+        ++iter) {
+      pStoreConf store_conf = (*iter);
 
-        bool success = configureStore(store_conf, &numstores);
+      bool success = configureStore(store_conf, &numstores);
 
-        if (!success) {
-          perfect_config = false;
-        }
+      if (!success) {
+        perfect_config = false;
+      }
     }
   } catch(std::exception const& e) {
     string errormsg("Bad config - exception: ");
@@ -802,15 +801,19 @@ void scribeHandler::initialize() {
     setStatusDetails("");
     setStatus(ALIVE);
   }
-  /*
-  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-  sleep(2);
-  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-  sleep(2);
-  g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-  host_counters_map_t host_counters_map;
-  getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
-  */
+
+
+  if (!g_ZKClient->zkServer.empty() &&
+      !g_ZKClient->zkRegistrationPrefix.empty() &&
+      g_ZKClient->zh ) {
+    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+    sleep(2);
+    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+    sleep(2);
+    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
+    host_counters_map_t host_counters_map;
+    getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
+  }
 }
 
 
@@ -851,7 +854,7 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
   else if (single_category) {
     // configure single store
     shared_ptr<StoreQueue> result =
-      configureStoreCategory(store_conf, category_list[0], model);
+        configureStoreCategory(store_conf, category_list[0], model);
 
     if (result == NULL) {
       return false;
@@ -883,8 +886,8 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
     // create a store for each category
     vector<string>::iterator iter;
     for (iter = category_list.begin(); iter < category_list.end(); iter++) {
-       shared_ptr<StoreQueue> result =
-         configureStoreCategory(store_conf, *iter, model);
+      shared_ptr<StoreQueue> result =
+          configureStoreCategory(store_conf, *iter, model);
 
       if (!result) {
         return false;
@@ -900,10 +903,10 @@ bool scribeHandler::configureStore(pStoreConf store_conf, int *numstores) {
 
 // Configures the store specified by the store configuration and category.
 shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
-  pStoreConf store_conf,                       //configuration for store
-  const string &category,                      //category name
-  const boost::shared_ptr<StoreQueue> &model,  //model to use (optional)
-  bool category_list) {                        //is a list of stores?
+    pStoreConf store_conf,                       //configuration for store
+    const string &category,                      //category name
+    const boost::shared_ptr<StoreQueue> &model,  //model to use (optional)
+    bool category_list) {                        //is a list of stores?
 
   bool is_default = false;
   bool already_created = false;
@@ -923,8 +926,8 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
   }
 
   bool is_prefix_category = (!category.empty() &&
-                             category[category.size() - 1] == '*' &&
-                             !category_list);
+      category[category.size() - 1] == '*' &&
+      !category_list);
 
   std::string type;
   if (!store_conf->getString("type", type) ||
@@ -944,7 +947,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
 
       for ( store_list_t::iterator it = pstores->begin(); it != pstores->end(); ++it ) {
         if ( (*it)->getBaseType() == type &&
-             pstores->size() <=  1) { // no good way to match them up if there's more than one
+            pstores->size() <=  1) { // no good way to match them up if there's more than one
           pstore = (*it);
           pstores->erase(it);
         }
@@ -983,8 +986,8 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
         is_model = newThreadPerCategory && categories;
 
         pstore =
-          shared_ptr<StoreQueue>(new StoreQueue(type, store_name, checkPeriod,
-                                                is_model, multi_category));
+            shared_ptr<StoreQueue>(new StoreQueue(type, store_name, checkPeriod,
+                is_model, multi_category));
       }
     }
   } catch (...) {
@@ -1011,13 +1014,13 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
   }
   else if (is_prefix_category) {
     category_prefix_map_t::iterator category_iter =
-      pnew_category_prefixes->find(category);
+        pnew_category_prefixes->find(category);
 
     if (category_iter == pnew_category_prefixes->end()) {
       (*pnew_category_prefixes)[category] = pstore;
     } else {
       string errormsg =
-        "Bad config - multiple prefix stores specified for category: ";
+          "Bad config - multiple prefix stores specified for category: ";
 
       errormsg += category;
       setStatusDetails(errormsg);
@@ -1035,7 +1038,7 @@ shared_ptr<StoreQueue> scribeHandler::configureStoreCategory(
       pstores = shared_ptr<store_list_t>(new store_list_t);
       (*pnew_categories)[category] = pstores;
     }
-        pstores->push_back(pstore);
+    pstores->push_back(pstore);
   }
 
   return pstore;
@@ -1048,15 +1051,15 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
     return;
   }
   for (category_map_t::iterator cat_iter = pcats->begin();
-       cat_iter != pcats->end();
-       ++cat_iter) {
+      cat_iter != pcats->end();
+      ++cat_iter) {
     shared_ptr<store_list_t> pstores = cat_iter->second;
     if (!pstores) {
       throw std::logic_error("deleteCategoryMap: iterator in category map holds null pointer");
     }
     for (store_list_t::iterator store_iter = pstores->begin();
-         store_iter != pstores->end();
-         ++store_iter) {
+        store_iter != pstores->end();
+        ++store_iter) {
       if (!*store_iter) {
         throw std::logic_error("deleteCategoryMap: iterator in store map holds null pointer");
       }

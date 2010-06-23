@@ -203,6 +203,7 @@ bool scribeConn::open() {
   try {
 
 #ifdef USE_ZOOKEEPER
+    LOG_OPER("opening zookeeper connection");
     if (0 == zkRegistrationZnode.find("zk://")) {
       string parentZnode = zkRegistrationZnode.substr(5, string::npos);
       if (g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {

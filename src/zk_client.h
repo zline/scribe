@@ -27,11 +27,13 @@
 void watcher(zhandle_t *zzh, int type, int state,
              const char *path, void *watcherCtx);
 
+class scribeHandler;
+
 class ZKClient {
  public:
    typedef std::map<std::string, std::string> HostStatusMap;
 
-   ZKClient();
+   ZKClient(scribeHandler* scribehandlerObj);
    virtual ~ZKClient();
 
    void connect();
@@ -43,11 +45,14 @@ class ZKClient {
                         std::string& remoteHost,
                         unsigned long& remotePort);
 
+   bool selectScribeAggregator(std::string& parentZNode);
    zhandle_t *zh;
    std::string zkServer;
    std::string zkRegistrationPrefix;
    std::string zkRegistrationName;
    std::string zkFullRegistrationName;
+   scribeHandler *scribeHandlerObj;
+
    unsigned long int scribeHandlerPort;
 };
 
