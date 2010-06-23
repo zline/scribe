@@ -129,17 +129,17 @@ bool ZKClient::updateStatus(std::string& current_status) {
   return rc == 0;
 }
 
-bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
+bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
   struct String_vector children;
-  if (zoo_get_children(zh, zkRegistrationPrefix.c_str(), 0, &children) != ZOK || children.count == 0) {
-    return false;
+  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
+	return false;
   }
   char buffer[512];
   int allocated_buflen = sizeof(buffer);
   for (int i = 0; i < children.count; ++i) {
-    int buflen = allocated_buflen;
-    std::string zk_file_path = zkRegistrationPrefix + "/" + children.data[i];
-    int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
+	int buflen = allocated_buflen;
+	std::string zk_file_path = parentZnode + "/" + children.data[i];
+	int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
     if (rc) {
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
@@ -152,7 +152,7 @@ bool ZKClient::getAllHostsStatus(HostStatusMap* host_status_map) {
 }
 
 // Get the best host:port to send messages to at this time.
-bool ZKClient::getRemoteScribe(string& parentZnode,
+bool ZKClient::getRemoteScribe(std::string& parentZnode,
     string& remoteHost,
     unsigned long& remotePort) {
   bool ret = false;
@@ -175,8 +175,7 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
   } else if (0 == children.count) {
     ret = false;
   } else {
-    selectScribeAggregator();
-    //string remoteScribeZnode = selectScribeAggregator();
+    selectScribeAggregator(parentZnode);
 
     // delete this
     string remoteScribeZnode = children.data[rand() % children.count];
@@ -194,9 +193,9 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
   return ret;
 }
 
-bool ZKClient::selectScribeAggregator() {
+bool ZKClient::selectScribeAggregator(std::string& parentZnode) {
   host_counters_map_t host_counters_map;
-  scribeHandlerObj->getCountersForAllHostsFromZooKeeper(host_counters_map);
+  scribeHandlerObj->getCountersForAllHostsFromZooKeeper(parentZnode, host_counters_map);
   for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
     LOG_OPER("%s -->", iter->first.c_str());
     for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {

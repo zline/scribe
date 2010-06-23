@@ -40,12 +40,12 @@ class ZKClient {
    void disconnect();
    bool registerTask();
    bool updateStatus(std::string& current_status);
-   bool getAllHostsStatus(HostStatusMap* host_status_map);
+   bool getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map);
    bool getRemoteScribe(std::string& parentZnode,
                         std::string& remoteHost,
                         unsigned long& remotePort);
 
-   bool selectScribeAggregator();
+   bool selectScribeAggregator(std::string& parentZNode);
    zhandle_t *zh;
    std::string zkServer;
    std::string zkRegistrationPrefix;
