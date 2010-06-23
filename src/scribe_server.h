@@ -129,4 +129,15 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
                   const boost::shared_ptr<store_list_t>& store_list);
 };
 
+class countersPublisher : public apache::thrift::concurrency::Runnable {
+ public:
+  countersPublisher(boost::shared_ptr<scribeHandler> scribe_handler_,
+                    boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager_);
+  ~countersPublisher();
+  virtual void run();
+ private:
+  boost::shared_ptr<scribeHandler> scribe_handler;
+  boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager;
+};
+
 #endif // SCRIBE_SERVER_H

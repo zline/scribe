@@ -54,6 +54,8 @@
 #include "thrift/protocol/TBinaryProtocol.h"
 #include "thrift/server/TNonblockingServer.h"
 #include "thrift/concurrency/ThreadManager.h"
+#include "thrift/concurrency/Thread.h"
+#include "thrift/concurrency/TimerManager.h"
 #include "thrift/concurrency/PosixThreadFactory.h"
 #include "thrift/concurrency/Mutex.h"
 #include "thrift/transport/TSocket.h"

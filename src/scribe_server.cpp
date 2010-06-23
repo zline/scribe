@@ -44,10 +44,10 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     1
-#define DEFAULT_UPDATE_STATUS_INTERVAL  1
+#define DEFAULT_UPDATE_STATUS_INTERVAL  10
 
-static string bytes_received_stat_name = "bytes_recevied_good";
-static string bytes_received_rate_stat_name = "bytes_received_rate";
+static string bytes_received_stat_name = "received good";
+static string bytes_received_rate_stat_name = "bytes received rate";
 
 static string log_separator = ":";
 
@@ -142,15 +142,22 @@ int main(int argc, char **argv) {
     binaryProtocolFactory(new TBinaryProtocolFactory(0, 0, false, false));
     shared_ptr<ThreadManager> thread_manager;
 
+    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
     if (g_Handler->numThriftServerThreads > 1) {
       // create a ThreadManager to process incoming calls
       thread_manager = ThreadManager::
           newSimpleThreadManager(g_Handler->numThriftServerThreads);
 
-      shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
       thread_manager->threadFactory(thread_factory);
       thread_manager->start();
     }
+
+    // add a TimerManager
+    shared_ptr<TimerManager> timer_manager(new TimerManager);
+    timer_manager->threadFactory(thread_factory);
+    timer_manager->start();
+    shared_ptr<Runnable> task(new countersPublisher(g_Handler, timer_manager));
+    timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 
     TNonblockingServer server(processor, binaryProtocolFactory,
         g_Handler->port, thread_manager);
@@ -243,7 +250,7 @@ void scribeHandler::writeCountersToZooKeeper() {
     all_counters_string += it->first + ":" + buffer + "\n";
   }
   g_ZKClient->registerTask();   // TODO(wanli): remove this
-  int64_t bytes_received = getCounter(bytes_received_rate_stat_name);
+  int64_t bytes_received = getCounter(bytes_received_stat_name);
   int64_t bytes_received_rate = 0;
   if (lastBytesReceived > 0 && bytes_received > lastBytesReceived) {
     bytes_received_rate = (bytes_received - lastBytesReceived) / (now - lastWriteCountersTime);
@@ -400,6 +407,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
   unsigned long long max_count = 0;
+  unsigned long long queue_size = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
       cat_iter != pcategories->end();
       ++cat_iter) {
@@ -417,6 +425,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
         if (size > max_count) {
           max_count = size;
         }
+        queue_size += size;
       }
     }
   }
@@ -425,6 +434,10 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
     incCounter("denied for queue size");
     return true;
   }
+
+  // Note this counter is updated when receiving messages and may be stale
+  // on scribes receiving few messages.
+  g_Handler->setCounter("queue size", queue_size);
 
   return false;
 }
@@ -555,12 +568,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     // Log this message
     addMessage(*msg_iter, store_list);
-    // TODO(wanli): move this to a different thread
-    if (!g_ZKClient->zkServer.empty() &&
-        !g_ZKClient->zkRegistrationPrefix.empty() &&
-        g_ZKClient->zh ) {
-    writeCountersToZooKeeper(); 
-    }
+
   }
 
   result = OK;
@@ -1062,4 +1070,18 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
   } // for each category
   pcats->clear();
   delete pcats;
+}
+
+countersPublisher::countersPublisher(boost::shared_ptr<scribeHandler> scribe_handler_, shared_ptr<TimerManager> timer_manager_) 
+ : scribe_handler(scribe_handler_),
+   timer_manager(timer_manager_) {
+}
+
+countersPublisher::~countersPublisher() {}
+
+void countersPublisher::run() {
+  LOG_OPER("counters publisher run");
+  scribe_handler->writeCountersToZooKeeper(); 
+  shared_ptr<Runnable> task(new countersPublisher(scribe_handler, timer_manager));
+  timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 }
