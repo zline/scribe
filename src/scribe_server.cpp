@@ -407,6 +407,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
   unsigned long long max_count = 0;
+  unsigned long long queue_size = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
        cat_iter != pcategories->end();
        ++cat_iter) {
@@ -424,6 +425,7 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
         if (size > max_count) {
           max_count = size;
         }
+        queue_size += size;
       }
     }
   }
@@ -432,6 +434,10 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
     incCounter("denied for queue size");
     return true;
   }
+
+  // Note this counter is updated when receiving messages and may be stale
+  // on scribes receiving few messages.
+  g_Handler->setCounter("queue size", queue_size);
 
   return false;
 }

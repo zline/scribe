@@ -175,7 +175,6 @@ bool ZKClient::getRemoteScribe(string& parentZnode,
     ret = false;
   } else {
     // Choose a random scribe.
-    // srand(time(NULL));
     int remoteScribeIndex = rand() % children.count;
 
     string remoteScribeZnode = children.data[remoteScribeIndex];

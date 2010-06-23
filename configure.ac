@@ -50,6 +50,7 @@ FB_ENABLE_FEATURE([FACEBOOK], [facebook])
 FB_ENABLE_FEATURE([USE_SCRIBE_HDFS], [hdfs])
 FB_ENABLE_FEATURE([HAVE_LZO], [lzo])
 FB_ENABLE_FEATURE([USE_ZOOKEEPER], [zookeeper])
+FB_ENABLE_FEATURE([USE_TCMALLOC], [tcmalloc])
 
 # Personalized path generator Sets default paths. Provides --with-xx=DIR options.
 # FB_WITH_PATH([<var>_home], [<var>path], [<default location>]
