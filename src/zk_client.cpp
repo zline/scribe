@@ -137,7 +137,7 @@ bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_s
   int allocated_buflen = sizeof(buffer);
   for (int i = 0; i < children.count; ++i) {
 	int buflen = allocated_buflen;
-	std::string zk_file_path = zkRegistrationPrefix + "/" + children.data[i];
+	std::string zk_file_path = parentZnode + "/" + children.data[i];
 	int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
     if (rc) {
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());

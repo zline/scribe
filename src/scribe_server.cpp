@@ -46,8 +46,8 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     1
 #define DEFAULT_UPDATE_STATUS_INTERVAL  1
 
-static string bytes_received_stat_name = "bytes_recevied_good";
-static string bytes_received_rate_stat_name = "bytes_received_rate";
+static string bytes_received_stat_name = "received good";
+static string bytes_received_rate_stat_name = "bytes received rate";
 
 static string log_separator = ":";
 
@@ -142,15 +142,22 @@ int main(int argc, char **argv) {
       binaryProtocolFactory(new TBinaryProtocolFactory(0, 0, false, false));
     shared_ptr<ThreadManager> thread_manager;
 
+    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
     if (g_Handler->numThriftServerThreads > 1) {
       // create a ThreadManager to process incoming calls
       thread_manager = ThreadManager::
         newSimpleThreadManager(g_Handler->numThriftServerThreads);
 
-      shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
       thread_manager->threadFactory(thread_factory);
       thread_manager->start();
     }
+
+    // add a TimerManager
+    shared_ptr<TimerManager> timer_manager(new TimerManager);
+    timer_manager->threadFactory(thread_factory);
+    timer_manager->start();
+    shared_ptr<Runnable> task(new countersPublisher(g_Handler, timer_manager));
+    timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 
     TNonblockingServer server(processor, binaryProtocolFactory,
                               g_Handler->port, thread_manager);
@@ -556,8 +563,6 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     // Log this message
     addMessage(*msg_iter, store_list);
 
-    // TODO(wanli): move this to a different thread
-    writeCountersToZooKeeper(); 
   }
 
   result = OK;
@@ -791,6 +796,7 @@ void scribeHandler::initialize() {
     setStatusDetails("");
     setStatus(ALIVE);
   }
+  /*
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
   sleep(2);
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
@@ -798,6 +804,7 @@ void scribeHandler::initialize() {
   g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
   host_counters_map_t host_counters_map;
   getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
+  */
 }
 
 
@@ -1054,4 +1061,18 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
   } // for each category
   pcats->clear();
   delete pcats;
+}
+
+countersPublisher::countersPublisher(boost::shared_ptr<scribeHandler> scribe_handler_, shared_ptr<TimerManager> timer_manager_) 
+ : scribe_handler(scribe_handler_),
+   timer_manager(timer_manager_) {
+}
+
+countersPublisher::~countersPublisher() {}
+
+void countersPublisher::run() {
+  LOG_OPER("counters publisher run");
+  scribe_handler->writeCountersToZooKeeper(); 
+  shared_ptr<Runnable> task(new countersPublisher(scribe_handler, timer_manager));
+  timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 }
