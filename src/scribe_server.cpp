@@ -44,7 +44,7 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     1
-#define DEFAULT_UPDATE_STATUS_INTERVAL  1
+#define DEFAULT_UPDATE_STATUS_INTERVAL  10
 
 static string bytes_received_stat_name = "received good";
 static string bytes_received_rate_stat_name = "bytes received rate";
@@ -250,7 +250,7 @@ void scribeHandler::writeCountersToZooKeeper() {
     all_counters_string += it->first + ":" + buffer + "\n";
   }
   g_ZKClient->registerTask();   // TODO(wanli): remove this
-  int64_t bytes_received = getCounter(bytes_received_rate_stat_name);
+  int64_t bytes_received = getCounter(bytes_received_stat_name);
   int64_t bytes_received_rate = 0;
   if (lastBytesReceived > 0 && bytes_received > lastBytesReceived) {
     bytes_received_rate = (bytes_received - lastBytesReceived) / (now - lastWriteCountersTime);
