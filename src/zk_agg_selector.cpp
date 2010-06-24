@@ -17,11 +17,13 @@ using namespace std;
 const string QUEUE_SIZE_KEY = "queue size";
 const string MSGS_RECEIVED_KEY = "bytes received rate";
 
+
 RandomAggSelector::RandomAggSelector(zhandle_t *zh)
  : zh_(zh) {
 }
 
 RandomAggSelector::~RandomAggSelector() {
+  // TODO(wanli): add LOG_OPER here
 }
 
 bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
@@ -48,6 +50,7 @@ bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
 MsgCounterAggSelector::MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh)
  : zkStatusReader_(zkStatusReader),
    zh_(zh) {
+  // TODO(wanli): add LOG_OPER here
 }
 
 MsgCounterAggSelector::~MsgCounterAggSelector() {
@@ -91,6 +94,7 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
   return false;
 }
 
+// make this configurable.
 AggSelector* AggSelectorFactory::createAggSelector(
     boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, string& aggName) {
   if (aggName.compare("RandomAggSelector") == 0) {
