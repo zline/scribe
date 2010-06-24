@@ -385,6 +385,30 @@ bool scribeHandler::createCategoryFromModel(
   return true;
 }
 
+void scribeHandler::setQueueSizeCounter() {
+  scribeHandlerLock.acquireRead();
+  unsigned long long queue_size = 0;
+  for (category_map_t::iterator cat_iter = pcategories->begin();
+      cat_iter != pcategories->end();
+      ++cat_iter) {
+    shared_ptr<store_list_t> pstores = cat_iter->second;
+    if (!pstores) {
+      throw std::logic_error("throttle check: iterator in category map holds null pointer");
+    }
+    for (store_list_t::iterator store_iter = pstores->begin();
+        store_iter != pstores->end();
+        ++store_iter) {
+      if (*store_iter == NULL) {
+        throw std::logic_error("throttle check: iterator in store map holds null pointer");
+      } else {
+        unsigned long long size = (*store_iter)->getSize();
+        queue_size += size;
+      }
+    }
+  }
+  g_Handler->setCounter("queue size", queue_size);
+  scribeHandlerLock.release();
+}
 
 // Check if we need to deny this request due to throttling
 bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
@@ -1084,6 +1108,7 @@ countersPublisher::~countersPublisher() {}
 
 void countersPublisher::run() {
   LOG_OPER("counters publisher run");
+  scribe_handler->setQueueSizeCounter();
   scribe_handler->writeCountersToZooKeeper(); 
   shared_ptr<Runnable> task(new countersPublisher(scribe_handler, timer_manager));
   timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
