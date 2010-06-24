@@ -385,8 +385,8 @@ bool scribeHandler::createCategoryFromModel(
   return true;
 }
 
-void scribeHandler::setQueueSizeCounter() {
-  scribeHandlerLock.acquireRead();
+void scribeHandler::setQueueSizeCounter(bool get_read_lock) {
+  if (get_read_lock) scribeHandlerLock.acquireRead();
   unsigned long long queue_size = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
       cat_iter != pcategories->end();
@@ -407,7 +407,7 @@ void scribeHandler::setQueueSizeCounter() {
     }
   }
   g_Handler->setCounter("queue size", queue_size);
-  scribeHandlerLock.release();
+  if (get_read_lock) scribeHandlerLock.release();
 }
 
 // Check if we need to deny this request due to throttling
@@ -1108,7 +1108,7 @@ countersPublisher::~countersPublisher() {}
 
 void countersPublisher::run() {
   LOG_OPER("counters publisher run");
-  scribe_handler->setQueueSizeCounter();
+  scribe_handler->setQueueSizeCounter(true);
   scribe_handler->writeCountersToZooKeeper(); 
   shared_ptr<Runnable> task(new countersPublisher(scribe_handler, timer_manager));
   timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);

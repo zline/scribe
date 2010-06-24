@@ -63,7 +63,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void setStatusDetails(const std::string& new_status_details);
   void writeCountersToZooKeeper();
   void getCountersForAllHostsFromZooKeeper(std::string& parentZnode, host_counters_map_t& host_counters_map);
-  void setQueueSizeCounter();
+  void setQueueSizeCounter(bool get_read_lock);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
 
