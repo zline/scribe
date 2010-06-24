@@ -23,7 +23,6 @@
 
 int debug_level = 0;
 #include "common.h"
-#include <boost/tokenizer.hpp>  // TODO(wanli): remove this
 #include "scribe_server.h"
 
 using namespace apache::thrift;
@@ -44,10 +43,9 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_MSG_PER_SECOND 100000
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     1
-#define DEFAULT_UPDATE_STATUS_INTERVAL  10
 
-static string bytes_received_stat_name = "received good";
-static string bytes_received_rate_stat_name = "bytes received rate";
+// TODO(wanli): make this configurable
+#define DEFAULT_UPDATE_STATUS_INTERVAL  10
 
 static string log_separator = ":";
 
@@ -152,16 +150,13 @@ int main(int argc, char **argv) {
       thread_manager->start();
     }
 
-    if (!g_ZKClient->zkServer.empty() &&
-        !g_ZKClient->zkRegistrationPrefix.empty() &&
-        g_ZKClient->zh ) {
-      // add a TimerManager
-      shared_ptr<TimerManager> timer_manager(new TimerManager);
-      timer_manager->threadFactory(thread_factory);
-      timer_manager->start();
-      shared_ptr<Runnable> task(new CountersPublisher(g_Handler, timer_manager));
-      timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
-    }
+    // add a TimerManager
+    shared_ptr<TimerManager> timer_manager(new TimerManager);
+    timer_manager->threadFactory(thread_factory);
+    timer_manager->start();
+    shared_ptr<Runnable> task(new CountersPublisher(g_Handler, timer_manager));
+    timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
+
     TNonblockingServer server(processor, binaryProtocolFactory,
         g_Handler->port, thread_manager);
 
@@ -1018,8 +1013,10 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
 CountersPublisher::CountersPublisher(boost::shared_ptr<scribeHandler> sHandler, shared_ptr<TimerManager> timerManager)
  : scribeHandler_(sHandler),
    timerManager_(timerManager) {
+#ifdef USE_ZOOKEEPER
   zkStatusWriter_ = shared_ptr<ZKStatusWriter> (
       new ZKStatusWriter(g_ZKClient, sHandler, DEFAULT_UPDATE_STATUS_INTERVAL));
+#endif
 }
 
 CountersPublisher::~CountersPublisher() {}
@@ -1027,7 +1024,13 @@ CountersPublisher::~CountersPublisher() {}
 void CountersPublisher::run() {
   LOG_OPER("counters publisher run");
   scribeHandler_->setQueueSizeCounter(true);
-  zkStatusWriter_->updateCounters();
+#ifdef USE_ZOOKEEPER
+  if (!g_ZKClient->zkServer.empty() &&
+      !g_ZKClient->zkRegistrationPrefix.empty() &&
+      g_ZKClient->zh ) {
+    zkStatusWriter_->updateCounters();
+  }
+#endif
   shared_ptr<Runnable> task(new CountersPublisher(scribeHandler_, timerManager_));
   timerManager_->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 }
