@@ -644,7 +644,7 @@ void scribeHandler::initialize() {
     setStatusDetails("initialize ZKClient");
     if (!g_ZKClient) {
       LOG_DEBUG("Creating new ZKClient.");
-      g_ZKClient = shared_ptr<ZKClient> (new ZKClient(this));
+      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
     }
 
     // Disconnect if already connected to clear previous state.
@@ -671,8 +671,8 @@ void scribeHandler::initialize() {
       // we connect+disconnect when discovering remote_host.
       LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>",
                g_ZKClient->zkServer.c_str(),
-               g_ZKClient->zkRegistrationPrefix.c_str())
-               g_ZKClient->connect();
+               g_ZKClient->zkRegistrationPrefix.c_str());
+      g_ZKClient->connect();
     }
 #endif
 

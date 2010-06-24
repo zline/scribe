@@ -7,17 +7,21 @@
  *      Author: Dmitriy V. Ryaboy
  */
 
+#include "zk_agg_selector.h"
 #include "zk_client.h"
 #include "zk_status.h"
-#include "zk_agg_selector.h"
 
 using namespace std;
 
-const std::string QUEUE_SIZE_KEY = "queue size";
-const std::string MSGS_RECEIVED_KEY = "bytes received rate";
+// TODO(wanli): share this with zk_status.cpp
+const string QUEUE_SIZE_KEY = "queue size";
+const string MSGS_RECEIVED_KEY = "bytes received rate";
 
-RandomAggSelector::RandomAggSelector(zhandle_t *zh) {
-  zh_ = zh;
+RandomAggSelector::RandomAggSelector(zhandle_t *zh)
+ : zh_(zh) {
+}
+
+RandomAggSelector::~RandomAggSelector() {
 }
 
 bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
@@ -32,6 +36,7 @@ bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
   } else {
     string remoteScribeZnode = children.data[rand() % children.count];
     size_t index = remoteScribeZnode.find(":");
+    // TODO(wanli): refactor the following into a function
     remoteHost = remoteScribeZnode.substr(0, index);
     string port = remoteScribeZnode.substr(index+1, string::npos);
     remotePort = static_cast<unsigned long>(atol(port.c_str()));
@@ -45,6 +50,9 @@ MsgCounterAggSelector::MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> z
    zh_(zh) {
 }
 
+MsgCounterAggSelector::~MsgCounterAggSelector() {
+}
+
 bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
     string& remoteHost,
     unsigned long& remotePort) {
@@ -55,10 +63,9 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(MSGS_RECEIVED_KEY) != 0) ? (int) iter->second[MSGS_RECEIVED_KEY] : 0;
     if (measure > max) { max = measure; }
-    // TODO(dvryaboy) remove debugging output, or wrap it in appropriate debug level
-    LOG_OPER("ZK AGGREGATOR %s -->", iter->first.c_str());
+    LOG_DEBUG("ZK AGGREGATOR %s -->", iter->first.c_str());
     for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
-      LOG_OPER("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
+      LOG_DEBUG("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
     }
   }
   map<std::string, int> weight_map;
@@ -80,16 +87,18 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
       return true;
     }
   }
+  LOG_OPER("Couldn't find any aggregator");
   return false;
 }
 
 AggSelector* AggSelectorFactory::createAggSelector(
     boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, string& aggName) {
-  if (aggName.compare("RandomAggSelector")) {
+  if (aggName.compare("RandomAggSelector") == 0) {
     return new RandomAggSelector(zh);
-  } else if (aggName.compare("MsgCounterAggSelector")) {
+  } else if (aggName.compare("MsgCounterAggSelector") == 0) {
     return new MsgCounterAggSelector(zkStatusReader, zh);
   } else {
+    LOG_OPER("Fall back to random aggregator selector");
     return new RandomAggSelector(zh);
   }
 }

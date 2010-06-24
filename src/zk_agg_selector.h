@@ -29,6 +29,7 @@ private:
   zhandle_t *zh_;
 public:
   RandomAggSelector(zhandle_t *zh);
+  virtual ~RandomAggSelector();
   bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
       unsigned long& remotePort);
 };
@@ -39,6 +40,7 @@ private:
   zhandle_t *zh_;
 public:
   MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh);
+  virtual ~MsgCounterAggSelector();
   bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
       unsigned long& remotePort);
 };

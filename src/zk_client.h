@@ -34,7 +34,7 @@ class ZKClient {
   // host_name -> ZK file content map.
   typedef std::map<std::string, std::string> HostStatusMap;
 
-  ZKClient(scribeHandler* scribehandlerObj);
+  ZKClient();
   virtual ~ZKClient();
 
   void connect();
@@ -51,7 +51,6 @@ class ZKClient {
   std::string zkRegistrationPrefix;
   std::string zkRegistrationName;
   std::string zkFullRegistrationName;
-  scribeHandler *scribeHandlerObj;
 
   unsigned long int scribeHandlerPort;
 };

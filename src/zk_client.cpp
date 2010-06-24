@@ -6,7 +6,7 @@
 //
 //  Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS,
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.`
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
@@ -23,8 +23,6 @@
 using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
-
-const int64_t MAX_INT64 = 0x43DFFFFFFFFFFFFF;
 
 shared_ptr<ZKClient> g_ZKClient;
 
@@ -53,9 +51,8 @@ void watcher(zhandle_t *zzh, int type, int state,
   }
 }
 
-ZKClient::ZKClient(scribeHandler* scribeHandlerObj_) {
+ZKClient::ZKClient() {
   zh = NULL;
-  scribeHandlerObj = scribeHandlerObj_;
   if (debug_level) {
     zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
   }
@@ -123,21 +120,24 @@ bool ZKClient::registerTask() {
 }
 
 bool ZKClient::updateStatus(std::string& current_status) {
+  // TODO(wanli): check the return value
   int rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(), current_status.length() + 1, -1);
   if (rc) {
     LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
   } else {
-    LOG_OPER("Write %s to ZK file %s", current_status.c_str(), zkFullRegistrationName.c_str());
+    LOG_DEBUG("Write %s to ZK file %s", current_status.c_str(), zkFullRegistrationName.c_str());
   }
   return rc == 0;
 }
 
+// TODO(wanli): caller should check return value
 bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
   struct String_vector children;
   if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
     return false;
   }
-  char buffer[512];
+  // The znode can be 1M, but it is not that big yet. 
+  char buffer[102400];
   int allocated_buflen = sizeof(buffer);
   for (int i = 0; i < children.count; ++i) {
     int buflen = allocated_buflen;
@@ -147,7 +147,7 @@ bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_s
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
       string content = buffer;
-      LOG_OPER("ZK file %s size: %ld content: %s", zk_file_path.c_str(), content.length(), content.c_str());
+      LOG_DEBUG("ZK file %s size: %ld content: %s", zk_file_path.c_str(), content.length(), content.c_str());
       (*host_status_map)[zk_file_path] = content;
     }
   }
@@ -174,6 +174,7 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   LOG_DEBUG("Getting the best remote scribe.");
   string selectorName = "MsgCounterAggSelector";
   boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
+  // TODO(wanli): either pass a list or a map to selector. selector does not need zh.
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkStatusReader, zh, selectorName);
   ret = aggSelector->selectScribeAggregator(parentZnode, remoteHost, remotePort);
 

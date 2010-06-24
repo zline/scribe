@@ -39,13 +39,12 @@ void ZKStatusReader::getCountersForAllHosts(
   ZKClient::HostStatusMap hostStatusMap;
   zkClient_->getAllHostsStatus(parentZnode, &hostStatusMap);
 
-  // TODO(wanli): change this to LOG_DEBUG
-  LOG_OPER("getCountersForAllHostsFromZooKeeper");
+  LOG_DEBUG("getCountersForAllHostsFromZooKeeper");
 
+  typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
+  boost::char_separator<char> sep("\n");
   for (ZKClient::HostStatusMap::iterator iter = hostStatusMap.begin();
        iter != hostStatusMap.end(); ++iter) {
-    typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
-    boost::char_separator<char> sep("\n");
     tokenizer tokens(iter->second, sep);
     for (tokenizer::iterator tok_iter = tokens.begin();
          tok_iter != tokens.end(); ++tok_iter) {
@@ -53,9 +52,8 @@ void ZKStatusReader::getCountersForAllHosts(
       std::string counterName = tok_iter->substr(0, pos);
       std::string counterValue = tok_iter->substr(pos + 1);
       _hostCountersMap[iter->first][counterName] = atoll(counterValue.c_str());
-      // TODO(wanli): change this to LOG_DEBUG
-      LOG_OPER("set %s %s => %lld", iter->first.c_str(), counterName.c_str(),
-               _hostCountersMap[iter->first][counterName]);
+      LOG_DEBUG("set %s %s => %lld", iter->first.c_str(), counterName.c_str(),
+                _hostCountersMap[iter->first][counterName]);
     }
   }
 }
@@ -82,10 +80,12 @@ void ZKStatusWriter::updateCounters() {
   CounterMap counterMap;
   scribeHandler_->getCounters(counterMap);
   string allCountersString;
-  char buffer[500];
+  char buffer[102400];
   for (CounterMap::iterator iter = counterMap.begin();
        iter != counterMap.end(); ++iter) {
     sprintf(buffer, "%lld", iter->second);
+    // TODO(wanli): skip all counters that contain ":"
+    // TODO(wanli): use string buffer if it is there
     allCountersString += iter->first + ":" + buffer + "\n";
   }
   int64_t receivedGood = scribeHandler_->getCounter(ReceivedGoodStatName);
@@ -93,10 +93,12 @@ void ZKStatusWriter::updateCounters() {
   if (lastReceivedGood_ > 0 && receivedGood > lastReceivedGood_) {
     receivedGoodRate =
         (receivedGood - lastReceivedGood_) / (now - lastWriteTime_);
+    if (receivedGoodRate == 0) receivedGoodRate = 1;
   }
   scribeHandler_->setCounter(ReceivedGoodRateStatName, receivedGoodRate);
   lastReceivedGood_ = receivedGood;
   lastWriteTime_ = now;
+  // TODO(wanli): also publish the timestamp
 
   LOG_DEBUG("writeCountersToZooKeeper: %s", allCountersString.c_str());
   zkClient_->updateStatus(allCountersString);

@@ -56,7 +56,7 @@ class ZKStatusWriter {
   boost::shared_ptr<ZKClient> zkClient_;
   boost::shared_ptr<scribeHandler> scribeHandler_;
   int minUpdateInterval_;
-  time_t lastWriteTime_;     // in sec
+  time_t lastWriteTime_;     // in seconds
   int64_t lastReceivedGood_;
 };
 
