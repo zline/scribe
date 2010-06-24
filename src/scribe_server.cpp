@@ -152,13 +152,16 @@ int main(int argc, char **argv) {
       thread_manager->start();
     }
 
-    // add a TimerManager
-    shared_ptr<TimerManager> timer_manager(new TimerManager);
-    timer_manager->threadFactory(thread_factory);
-    timer_manager->start();
-    shared_ptr<Runnable> task(new countersPublisher(g_Handler, timer_manager));
-    timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
-
+    if (!g_ZKClient->zkServer.empty() &&
+        !g_ZKClient->zkRegistrationPrefix.empty() &&
+        g_ZKClient->zh ) {
+      // add a TimerManager
+      shared_ptr<TimerManager> timer_manager(new TimerManager);
+      timer_manager->threadFactory(thread_factory);
+      timer_manager->start();
+      shared_ptr<Runnable> task(new countersPublisher(g_Handler, timer_manager));
+      timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
+    }
     TNonblockingServer server(processor, binaryProtocolFactory,
         g_Handler->port, thread_manager);
 

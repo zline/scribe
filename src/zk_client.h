@@ -25,35 +25,36 @@
 #include "scribe_server.h"
 
 void watcher(zhandle_t *zzh, int type, int state,
-             const char *path, void *watcherCtx);
+    const char *path, void *watcherCtx);
 
 class scribeHandler;
 
 class ZKClient {
- public:
-   typedef std::map<std::string, std::string> HostStatusMap;
+public:
+  typedef std::map<std::string, std::string> HostStatusMap;
+  ZKClient(scribeHandler* scribehandlerObj);
+  virtual ~ZKClient();
 
-   ZKClient(scribeHandler* scribehandlerObj);
-   virtual ~ZKClient();
+  void connect();
+  void disconnect();
+  bool registerTask();
+  bool updateStatus(std::string& current_status);
+  bool getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map);
+  bool getRemoteScribe(std::string& parentZnode,
+      std::string& remoteHost,
+      unsigned long& remotePort);
 
-   void connect();
-   void disconnect();
-   bool registerTask();
-   bool updateStatus(std::string& current_status);
-   bool getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map);
-   bool getRemoteScribe(std::string& parentZnode,
-                        std::string& remoteHost,
-                        unsigned long& remotePort);
+  bool selectScribeAggregator(std::string& parentZnode,
+      std::string& remoteHost,
+      unsigned long& remotePort);
+  zhandle_t *zh;
+  std::string zkServer;
+  std::string zkRegistrationPrefix;
+  std::string zkRegistrationName;
+  std::string zkFullRegistrationName;
+  scribeHandler *scribeHandlerObj;
 
-   bool selectScribeAggregator(std::string& parentZNode);
-   zhandle_t *zh;
-   std::string zkServer;
-   std::string zkRegistrationPrefix;
-   std::string zkRegistrationName;
-   std::string zkFullRegistrationName;
-   scribeHandler *scribeHandlerObj;
-
-   unsigned long int scribeHandlerPort;
+  unsigned long int scribeHandlerPort;
 };
 
 extern boost::shared_ptr<ZKClient> g_ZKClient;

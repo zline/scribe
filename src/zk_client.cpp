@@ -23,6 +23,11 @@ using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
+// TODO(dvryaboy) pull out these constants
+const std::string QUEUE_SIZE_KEY = "queue size";
+const std::string MSGS_RECEIVED_KEY = "bytes received rate";
+const int64_t MAX_INT64 = 0x43DFFFFFFFFFFFFF;
+
 shared_ptr<ZKClient> g_ZKClient;
 
 /*
@@ -132,14 +137,14 @@ bool ZKClient::updateStatus(std::string& current_status) {
 bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
   struct String_vector children;
   if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
-	return false;
+    return false;
   }
   char buffer[512];
   int allocated_buflen = sizeof(buffer);
   for (int i = 0; i < children.count; ++i) {
-	int buflen = allocated_buflen;
-	std::string zk_file_path = parentZnode + "/" + children.data[i];
-	int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
+    int buflen = allocated_buflen;
+    std::string zk_file_path = parentZnode + "/" + children.data[i];
+    int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
     if (rc) {
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
@@ -175,16 +180,7 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   } else if (0 == children.count) {
     ret = false;
   } else {
-    selectScribeAggregator(parentZnode);
-
-    // delete this
-    string remoteScribeZnode = children.data[rand() % children.count];
-    size_t index = remoteScribeZnode.find(":");
-
-    remoteHost = remoteScribeZnode.substr(0, index);
-    string port = remoteScribeZnode.substr(index+1, string::npos);
-    remotePort = static_cast<unsigned long>(atol(port.c_str()));
-    ret = true;
+    ret = selectScribeAggregator(parentZnode, remoteHost, remotePort);
   }
 
   if (should_disconnect) {
@@ -193,15 +189,40 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   return ret;
 }
 
-bool ZKClient::selectScribeAggregator(std::string& parentZnode) {
+// TODO(dvryaboy) make this logic modular
+bool ZKClient::selectScribeAggregator(string& parentZnode, string& remoteHost,
+    unsigned long& remotePort) {
   host_counters_map_t host_counters_map;
   scribeHandlerObj->getCountersForAllHostsFromZooKeeper(parentZnode, host_counters_map);
+  int max = 0, sum = 0;
   for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
-    LOG_OPER("%s -->", iter->first.c_str());
+    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    measure += (iter->second.count(MSGS_RECEIVED_KEY) != 0) ? (int) iter->second[MSGS_RECEIVED_KEY] : 0;
+    if (measure > max) { max = measure; }
+    // TODO(dvryaboy) remove debugging output, or wrap it in appropriate debug level
+    LOG_OPER("ZK AGGREGATOR %s -->", iter->first.c_str());
     for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
-      LOG_OPER("\t %s --> %lld", counterIter->first.c_str(), counterIter->second);
+      LOG_OPER("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
     }
   }
-
-  return true;
+  map<std::string, int> weight_map;
+  //TODO (dvryaboy) make sum resilient to overflow
+  for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
+    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    measure += (iter->second.count(MSGS_RECEIVED_KEY) != 0) ? (int) iter->second[MSGS_RECEIVED_KEY] : 0;
+    weight_map[iter->first] = (int) max - measure + 1;
+    sum += weight_map[iter->first];
+  }
+  int r = rand() % sum;
+  for (map<std::string, int>::iterator iter = weight_map.begin(); iter != weight_map.end(); iter++ ) {
+    if ( (r -= iter->second) < 0 ) {
+      size_t index = iter->first.find(":");
+      remoteHost = iter->first.substr(parentZnode.length() + 1, index - parentZnode.length() - 1);
+      string port = iter->first.substr(index+1, string::npos);
+      remotePort = static_cast<unsigned long>(atol(port.c_str()));
+      LOG_OPER("Selected %s, %ld", remoteHost.c_str(), remotePort);
+      return true;
+    }
+  }
+  return false;
 }
