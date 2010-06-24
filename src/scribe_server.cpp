@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
       shared_ptr<TimerManager> timer_manager(new TimerManager);
       timer_manager->threadFactory(thread_factory);
       timer_manager->start();
-      shared_ptr<Runnable> task(new countersPublisher(g_Handler, timer_manager));
+      shared_ptr<Runnable> task(new CountersPublisher(g_Handler, timer_manager));
       timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
     }
     TNonblockingServer server(processor, binaryProtocolFactory,
@@ -188,8 +188,6 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
   configFilename(config_file),
   status(STARTING),
   statusDetails("initial state"),
-  lastWriteCountersTime(0),
-  lastBytesReceived(0),
   numMsgLastSecond(0),
   maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
   maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
@@ -235,55 +233,6 @@ void scribeHandler::setStatus(fb_status new_status) {
   LOG_OPER("STATUS: %s", statusAsString(new_status));
   Guard status_monitor(statusLock);
   status = new_status;
-}
-
-void scribeHandler::writeCountersToZooKeeper() {
-  time_t now;
-  time(&now);
-  if (now - lastWriteCountersTime < DEFAULT_UPDATE_STATUS_INTERVAL)
-    return;
-  incCounter("write counters to zookeeper");
-  counter_map_t counters_map;
-  getCounters(counters_map);
-  std::string all_counters_string;
-  char buffer[100];
-  for (counter_map_t::iterator it = counters_map.begin();
-      it != counters_map.end(); ++it) {
-    sprintf(buffer, "%lld", it->second);
-    all_counters_string += it->first + ":" + buffer + "\n";
-  }
-  g_ZKClient->registerTask();   // TODO(wanli): remove this
-  int64_t bytes_received = getCounter(bytes_received_stat_name);
-  int64_t bytes_received_rate = 0;
-  if (lastBytesReceived > 0 && bytes_received > lastBytesReceived) {
-    bytes_received_rate = (bytes_received - lastBytesReceived) / (now - lastWriteCountersTime);
-  }
-  setCounter(bytes_received_rate_stat_name, bytes_received_rate);
-  lastBytesReceived = bytes_received;
-  lastWriteCountersTime = now;
-
-  LOG_DEBUG("writeCountersToZooKeeper: %s", all_counters_string.c_str());
-  g_ZKClient->updateStatus(all_counters_string);
-}
-
-void scribeHandler::getCountersForAllHostsFromZooKeeper(std::string& parentZnode, host_counters_map_t& host_counters_map) {
-  // TODO(wanli): fix the path to read the file
-  ZKClient::HostStatusMap host_status_map;
-  g_ZKClient->getAllHostsStatus(parentZnode, &host_status_map);
-  LOG_OPER("getCountersForAllHostsFromZooKeeper");
-  for (ZKClient::HostStatusMap::iterator iter = host_status_map.begin();
-      iter != host_status_map.end(); ++iter) {
-    typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
-    boost::char_separator<char> sep("\n");
-    tokenizer tokens(iter->second, sep);
-    for (tokenizer::iterator tok_iter = tokens.begin(); tok_iter != tokens.end(); ++tok_iter) {
-      string::size_type pos = tok_iter->find_first_of(":");
-      std::string counter_name = tok_iter->substr(0, pos);
-      std::string counter_value = tok_iter->substr(pos + 1);
-      host_counters_map[iter->first][counter_name] = atoll(counter_value.c_str());
-      LOG_OPER("set %s %s => %lld", iter->first.c_str(), counter_name.c_str(), host_counters_map[iter->first][counter_name]); 
-    }
-  }
 }
 
 // Returns the handler status details if non-empty,
@@ -725,8 +674,10 @@ void scribeHandler::initialize() {
         !g_ZKClient->zh) {
       // Only connect at this time if we register ourself. If needed,
       // we connect+disconnect when discovering remote_host.
-      LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>", g_ZKClient->zkServer.c_str(), g_ZKClient->zkRegistrationPrefix.c_str())
-          g_ZKClient->connect();
+      LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>",
+               g_ZKClient->zkServer.c_str(),
+               g_ZKClient->zkRegistrationPrefix.c_str())
+               g_ZKClient->connect();
     }
 #endif
 
@@ -805,19 +756,6 @@ void scribeHandler::initialize() {
   } else {
     setStatusDetails("");
     setStatus(ALIVE);
-  }
-
-
-  if (!g_ZKClient->zkServer.empty() &&
-      !g_ZKClient->zkRegistrationPrefix.empty() &&
-      g_ZKClient->zh ) {
-    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-    sleep(2);
-    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-    sleep(2);
-    g_Handler->writeCountersToZooKeeper(); // TODO(wanli): remove this
-    host_counters_map_t host_counters_map;
-    getCountersForAllHostsFromZooKeeper(g_ZKClient->zkRegistrationPrefix, host_counters_map); // TODO(wanli): remove this
   }
 }
 
@@ -1077,17 +1015,19 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
   delete pcats;
 }
 
-countersPublisher::countersPublisher(boost::shared_ptr<scribeHandler> scribe_handler_, shared_ptr<TimerManager> timer_manager_) 
- : scribe_handler(scribe_handler_),
-   timer_manager(timer_manager_) {
+CountersPublisher::CountersPublisher(boost::shared_ptr<scribeHandler> sHandler, shared_ptr<TimerManager> timerManager)
+ : scribeHandler_(sHandler),
+   timerManager_(timerManager) {
+  zkStatusWriter_ = shared_ptr<ZKStatusWriter> (
+      new ZKStatusWriter(g_ZKClient, sHandler, DEFAULT_UPDATE_STATUS_INTERVAL));
 }
 
-countersPublisher::~countersPublisher() {}
+CountersPublisher::~CountersPublisher() {}
 
-void countersPublisher::run() {
+void CountersPublisher::run() {
   LOG_OPER("counters publisher run");
-  scribe_handler->setQueueSizeCounter(true);
-  scribe_handler->writeCountersToZooKeeper(); 
-  shared_ptr<Runnable> task(new countersPublisher(scribe_handler, timer_manager));
-  timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
+  scribeHandler_->setQueueSizeCounter(true);
+  zkStatusWriter_->updateCounters();
+  shared_ptr<Runnable> task(new CountersPublisher(scribeHandler_, timerManager_));
+  timerManager_->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
 }

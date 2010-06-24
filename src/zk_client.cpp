@@ -87,18 +87,19 @@ bool ZKClient::registerTask() {
   gethostname(hostname, 1023);
   zkRegistrationName = lexical_cast<string>(hostname) + ":" + lexical_cast<string>(scribeHandlerPort);
   zkFullRegistrationName = zkRegistrationPrefix + "/" + zkRegistrationName;
-
   static string contents = "";
-  size_t index = zkRegistrationPrefix.find("/", 0);
+  struct Stat stat;
   char tmp[0];
 
   // Prefixs are created as regular znodes.
-  // TODO(wanli): skip this if the file already exists
-  while (index < string::npos) {
-    index = zkRegistrationPrefix.find("/", index+1);
-    string prefix = zkRegistrationPrefix.substr(0, index);
-    zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
-        &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
+  if (ZOK != zoo_exists(zh, zkRegistrationPrefix.c_str(), 1, &stat)) {
+    size_t index = zkRegistrationPrefix.find("/", 0);
+    while (index < string::npos) {
+      index = zkRegistrationPrefix.find("/", index+1);
+      string prefix = zkRegistrationPrefix.substr(0, index);
+      zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
+          &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
+    }
   }
 
   // Register this scribe as an ephemeral node.
@@ -109,7 +110,6 @@ bool ZKClient::registerTask() {
   if (ZOK == ret) {
     return true;
   } else if (ZNODEEXISTS == ret) {
-    struct Stat stat;
     if (ZOK == zoo_exists(zh, zkFullRegistrationName.c_str(), 1, &stat)) {
       LOG_DEBUG("Set watch on znode that already exists: %s", zkFullRegistrationName.c_str());
       return true;
@@ -172,16 +172,10 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   }
 
   LOG_DEBUG("Getting the best remote scribe.");
-  struct String_vector children;
-  if (ZOK != zoo_get_children(zh, parentZnode.c_str(), 0, &children)) {
-    ret = false;
-  } else if (0 == children.count) {
-    ret = false;
-  } else {
-    string selectorName = "MsgCounterAggSelector";
-    AggSelector *aggSelector = AggSelectorFactory::createAggSelector(scribeHandlerObj, zh, selectorName);
-    ret = aggSelector->selectScribeAggregator(parentZnode, remoteHost, remotePort);
-  }
+  string selectorName = "MsgCounterAggSelector";
+  boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
+  AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkStatusReader, zh, selectorName);
+  ret = aggSelector->selectScribeAggregator(parentZnode, remoteHost, remotePort);
 
   if (should_disconnect) {
     disconnect();

@@ -22,9 +22,9 @@
 
 #ifdef USE_ZOOKEEPER
 #include "common.h"
-#include "zk_client.h"
 
 class scribeHandler;
+class ZKClient;
 
 // counter name -> value map
 typedef std::map<std::string, int64_t> CounterMap;
@@ -34,27 +34,27 @@ typedef std::map<std::string, CounterMap> HostCountersMap;
 // Read the ZKfiles under a parent znode and return the counters maps for all hosts.
 class ZKStatusReader {
  public:
-  ZKStatusReader(boost::shared_ptr<ZKClient> zkClient);
+  ZKStatusReader(ZKClient *zkClient);
   virtual ~ZKStatusReader();
-  void getCounntersForAllHosts(std::string& parentZnode,
+  void getCountersForAllHosts(std::string& parentZnode,
                                HostCountersMap& _hostCountersMap);
   
  private:
-  boost::shared_ptr<ZKClient> zkClient_;
+  ZKClient *zkClient_;
 };
 
 // Write counters map into the ZK file of a host
 class ZKStatusWriter {
  public:
   ZKStatusWriter(boost::shared_ptr<ZKClient> zkClient,
-                 scribeHandler *scribeHandler,
+                 boost::shared_ptr<scribeHandler> scribeHandler,
                  int minUpdateInterval);
   virtual ~ZKStatusWriter();
   void updateCounters();
   
  private:
   boost::shared_ptr<ZKClient> zkClient_;
-  scribeHandler *scribeHandler_;
+  boost::shared_ptr<scribeHandler> scribeHandler_;
   int minUpdateInterval_;
   time_t lastWriteTime_;     // in sec
   int64_t lastReceivedGood_;

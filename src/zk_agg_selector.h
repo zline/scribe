@@ -21,25 +21,24 @@ public:
 
 class AggSelectorFactory {
 public:
-  static AggSelector* createAggSelector(scribeHandler *scribeHandlerObj, zhandle_t *zh, std::string& aggName);
+  static AggSelector* createAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, std::string& aggName);
 };
 
 class RandomAggSelector : public AggSelector {
 private:
-  scribeHandler *scribeHandlerObj_;
   zhandle_t *zh_;
 public:
-  RandomAggSelector(scribeHandler *scribeHandlerObj, zhandle_t *zh);
+  RandomAggSelector(zhandle_t *zh);
   bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
       unsigned long& remotePort);
 };
 
 class MsgCounterAggSelector : public AggSelector {
 private:
-  scribeHandler* scribeHandlerObj_;
+  boost::shared_ptr<ZKStatusReader> zkStatusReader_; 
   zhandle_t *zh_;
 public:
-  MsgCounterAggSelector(scribeHandler *scribeHandlerObj, zhandle_t *zh);
+  MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh);
   bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
       unsigned long& remotePort);
 };

@@ -8,16 +8,15 @@
  */
 
 #include "zk_client.h"
+#include "zk_status.h"
 #include "zk_agg_selector.h"
-#include "scribe_server.h"
 
 using namespace std;
 
 const std::string QUEUE_SIZE_KEY = "queue size";
 const std::string MSGS_RECEIVED_KEY = "bytes received rate";
 
-RandomAggSelector::RandomAggSelector(scribeHandler* scribeHandlerObj, zhandle_t *zh) {
-  scribeHandlerObj_ = scribeHandlerObj;
+RandomAggSelector::RandomAggSelector(zhandle_t *zh) {
   zh_ = zh;
 }
 
@@ -41,16 +40,16 @@ bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
   return ret;
 }
 
-MsgCounterAggSelector::MsgCounterAggSelector(scribeHandler* scribeHandlerObj, zhandle_t *zh) {
-  scribeHandlerObj_ = scribeHandlerObj;
-  zh_ = zh;
+MsgCounterAggSelector::MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh)
+ : zkStatusReader_(zkStatusReader),
+   zh_(zh) {
 }
 
 bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
     string& remoteHost,
     unsigned long& remotePort) {
   host_counters_map_t host_counters_map;
-  scribeHandlerObj_->getCountersForAllHostsFromZooKeeper(parentZnode, host_counters_map);
+  zkStatusReader_->getCountersForAllHosts(parentZnode, host_counters_map);
   int max = 0, sum = 0;
   for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
@@ -85,12 +84,12 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
 }
 
 AggSelector* AggSelectorFactory::createAggSelector(
-    scribeHandler* scribeHandlerObj, zhandle_t *zh, string& aggName) {
+    boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, string& aggName) {
   if (aggName.compare("RandomAggSelector")) {
-    return new RandomAggSelector(scribeHandlerObj, zh);
+    return new RandomAggSelector(zh);
   } else if (aggName.compare("MsgCounterAggSelector")) {
-    return new MsgCounterAggSelector(scribeHandlerObj, zh);
+    return new MsgCounterAggSelector(zkStatusReader, zh);
   } else {
-    return new RandomAggSelector(scribeHandlerObj, zh);
+    return new RandomAggSelector(zh);
   }
 }

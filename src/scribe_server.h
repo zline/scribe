@@ -28,6 +28,7 @@
 #include "store_queue.h"
 #ifdef USE_ZOOKEEPER
 #include "zk_client.h"
+#include "zk_status.h"
 #endif
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
@@ -60,8 +61,6 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void getStatusDetails(std::string& _return);
   void setStatus(facebook::fb303::fb_status new_status);
   void setStatusDetails(const std::string& new_status_details);
-  void writeCountersToZooKeeper();
-  void getCountersForAllHostsFromZooKeeper(std::string& parentZnode, host_counters_map_t& host_counters_map);
   void setQueueSizeCounter(bool get_read_lock);
 
   unsigned long int port; // it's long because that's all I implemented in the conf class
@@ -91,8 +90,6 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   std::string statusDetails;
   apache::thrift::concurrency::Mutex statusLock;
   time_t lastMsgTime;
-  time_t lastWriteCountersTime;
-  int64_t lastBytesReceived;
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
   unsigned long long maxQueueSize;
@@ -129,15 +126,16 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
                   const boost::shared_ptr<store_list_t>& store_list);
 };
 
-class countersPublisher : public apache::thrift::concurrency::Runnable {
+class CountersPublisher : public apache::thrift::concurrency::Runnable {
  public:
-  countersPublisher(boost::shared_ptr<scribeHandler> scribe_handler_,
-                    boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager_);
-  ~countersPublisher();
+  CountersPublisher(boost::shared_ptr<scribeHandler> scribeHandler,
+                    boost::shared_ptr<apache::thrift::concurrency::TimerManager> timerManager);
+  ~CountersPublisher();
   virtual void run();
  private:
-  boost::shared_ptr<scribeHandler> scribe_handler;
-  boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager;
+  boost::shared_ptr<scribeHandler> scribeHandler_;
+  boost::shared_ptr<apache::thrift::concurrency::TimerManager> timerManager_;
+  boost::shared_ptr<ZKStatusWriter> zkStatusWriter_;
 };
 
 #endif // SCRIBE_SERVER_H

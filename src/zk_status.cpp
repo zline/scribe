@@ -27,14 +27,14 @@ using boost::shared_ptr;
 static string ReceivedGoodStatName = "received good";
 static string ReceivedGoodRateStatName = "received good rate";
 
-ZKStatusReader::ZKStatusReader(shared_ptr<ZKClient> zkClient)
+ZKStatusReader::ZKStatusReader(ZKClient *zkClient)
  : zkClient_(zkClient) {
 }
 
 ZKStatusReader::~ZKStatusReader() {
 }
 
-void ZKStatusReader::getCounntersForAllHosts(
+void ZKStatusReader::getCountersForAllHosts(
     string& parentZnode, HostCountersMap& _hostCountersMap) {
   ZKClient::HostStatusMap hostStatusMap;
   zkClient_->getAllHostsStatus(parentZnode, &hostStatusMap);
@@ -61,7 +61,7 @@ void ZKStatusReader::getCounntersForAllHosts(
 }
 
 ZKStatusWriter::ZKStatusWriter(shared_ptr<ZKClient> zkClient,
-                               scribeHandler *scribeHandler, int minUpdateInterval)
+                               boost::shared_ptr<scribeHandler> scribeHandler, int minUpdateInterval)
  : zkClient_(zkClient),
    scribeHandler_(scribeHandler),
    minUpdateInterval_(minUpdateInterval),
