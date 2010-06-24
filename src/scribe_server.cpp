@@ -425,47 +425,25 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
     return true;
   }
 
-  // Throttle based on store queues getting too long.
-  // Note that there's one decision for all categories, because the whole array passed to us
-  // must either succeed or fail together. Checking before we've queued anything also has
-  // the nice property that any size array will succeed if we're unloaded before attempting
-  // it, so we won't hit a case where there's a client request that will never succeed.
-  // Also note that we always check all categories, not just the ones in this request.
-  // This is a simplification based on the assumption that most Log() calls contain most
-  // categories.
-  unsigned long long max_count = 0;
-  unsigned long long queue_size = 0;
-  for (category_map_t::iterator cat_iter = pcategories->begin();
-      cat_iter != pcategories->end();
-      ++cat_iter) {
-    shared_ptr<store_list_t> pstores = cat_iter->second;
-    if (!pstores) {
-      throw std::logic_error("throttle check: iterator in category map holds null pointer");
-    }
-    for (store_list_t::iterator store_iter = pstores->begin();
-        store_iter != pstores->end();
-        ++store_iter) {
-      if (*store_iter == NULL) {
-        throw std::logic_error("throttle check: iterator in store map holds null pointer");
-      } else {
-        unsigned long long size = (*store_iter)->getSize();
-        if (size > max_count) {
-          max_count = size;
-        }
-        queue_size += size;
-      }
-    }
+  // Accept messages if this single vector is larger than maxQueueSize.
+  // Denying would be worse as the memory has already been consumed and
+  // misbehaving clients may continue sending it over and over.
+  if (messages.capacity() > maxQueueSize) {
+    LOG_OPER("Throttle allowing ridiculously large <%lu> byte packet with <%lu> messages for exceeding queue size.", messages.capacity(), messages.size())
+    return false;
   }
 
-  if (max_count > maxQueueSize) {
-    incCounter("denied for queue size");
+  // Deny messages if the total size of all queues, plus new messages,
+  // would exceed maxQueueSize.
+  setQueueSizeCounter(false);
+  unsigned long long queue_size = getCounter("queue size");
+  if ((queue_size + messages.capacity()) > maxQueueSize) {
+    LOG_OPER("Throttle denying <%lu> byte packet with <%lu> messages for queue size.",
+      messages.size(), messages.capacity());
     return true;
   }
 
-  // Note this counter is updated when receiving messages and may be stale
-  // on scribes receiving few messages.
-  g_Handler->setCounter("queue size", queue_size);
-
+  // Accept these messages.
   return false;
 }
 
