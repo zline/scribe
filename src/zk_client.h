@@ -44,9 +44,6 @@ public:
       std::string& remoteHost,
       unsigned long& remotePort);
 
-  bool selectScribeAggregator(std::string& parentZnode,
-      std::string& remoteHost,
-      unsigned long& remotePort);
   zhandle_t *zh;
   std::string zkServer;
   std::string zkRegistrationPrefix;

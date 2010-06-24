@@ -106,6 +106,7 @@ if USE_SCRIBE_HDFS
 endif
 if USE_ZOOKEEPER
   scribed_SOURCES += zk_client.cpp
+  scribed_SOURCES += zk_agg_selector.cpp
 endif
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
 
