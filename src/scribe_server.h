@@ -45,7 +45,6 @@ void incCounter(std::string counter, long amount);
 
 class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
-
  public:
   scribeHandler(unsigned long int port, const std::string& conf_file);
   ~scribeHandler();

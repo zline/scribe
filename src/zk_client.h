@@ -30,8 +30,10 @@ void watcher(zhandle_t *zzh, int type, int state,
 class scribeHandler;
 
 class ZKClient {
-public:
+ public:
+  // host_name -> ZK file content map.
   typedef std::map<std::string, std::string> HostStatusMap;
+
   ZKClient(scribeHandler* scribehandlerObj);
   virtual ~ZKClient();
 
@@ -59,5 +61,5 @@ public:
 
 extern boost::shared_ptr<ZKClient> g_ZKClient;
 
-#endif // SCRIBE_ZK_CLIENT_H
 #endif // USE_ZOOKEEPER
+#endif // SCRIBE_ZK_CLIENT_H

@@ -23,7 +23,7 @@
 
 int debug_level = 0;
 #include "common.h"
-#include <boost/tokenizer.hpp>
+#include <boost/tokenizer.hpp>  // TODO(wanli): remove this
 #include "scribe_server.h"
 
 using namespace apache::thrift;

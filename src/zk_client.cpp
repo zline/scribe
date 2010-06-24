@@ -99,7 +99,7 @@ bool ZKClient::registerTask() {
   while (index < string::npos) {
     index = zkRegistrationPrefix.find("/", index+1);
     string prefix = zkRegistrationPrefix.substr(0, index);
-    int ret = zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
+    zoo_create(zh, prefix.c_str(), contents.c_str(), contents.length(),
         &ZOO_CREATOR_ALL_ACL, 0, tmp, sizeof(tmp));
   }
 
@@ -129,7 +129,7 @@ bool ZKClient::updateStatus(std::string& current_status) {
   if (rc) {
     LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
   } else {
-    LOG_OPER("Write %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
+    LOG_OPER("Write %s to ZK file %s", current_status.c_str(), zkFullRegistrationName.c_str());
   }
   return rc == 0;
 }
@@ -149,7 +149,7 @@ bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_s
       LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
     } else {
       string content = buffer;
-      LOG_OPER("ZK file %s size: %d content: %s", zk_file_path.c_str(), content.length(), content.c_str());
+      LOG_OPER("ZK file %s size: %ld content: %s", zk_file_path.c_str(), content.length(), content.c_str());
       (*host_status_map)[zk_file_path] = content;
     }
   }
