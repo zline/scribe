@@ -23,6 +23,7 @@ bool RandomAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
   if (hostCountersMap.size() == 0) {
+    LOG_DEBUG("No hosts in counters map!");
     return false;
   } else {
     int randomInt = rand() % hostCountersMap.size();
@@ -37,6 +38,7 @@ bool RandomAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
     remoteHost = remoteScribeZnode.substr(lastSlashIdx + 1, index - lastSlashIdx - 1);
     string port = remoteScribeZnode.substr(index+1, string::npos);
     remotePort = static_cast<unsigned long>(atol(port.c_str()));
+    LOG_DEBUG("Selected remote scribe %s:%lu", remoteHost, remotePort);
     return true;
   }
 }
