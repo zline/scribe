@@ -134,7 +134,10 @@ class CountersPublisher : public apache::thrift::concurrency::Runnable {
  private:
   boost::shared_ptr<scribeHandler> scribeHandler_;
   boost::shared_ptr<apache::thrift::concurrency::TimerManager> timerManager_;
+#ifdef USE_ZOOKEEPER
   boost::shared_ptr<ZKStatusWriter> zkStatusWriter_;
+#endif
+  boost::shared_ptr<Runnable> task_;
 };
 
 #endif // SCRIBE_SERVER_H

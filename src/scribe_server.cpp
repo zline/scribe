@@ -1020,7 +1020,8 @@ void scribeHandler::deleteCategoryMap(category_map_t *pcats) {
 
 CountersPublisher::CountersPublisher(boost::shared_ptr<scribeHandler> sHandler, shared_ptr<TimerManager> timerManager)
  : scribeHandler_(sHandler),
-   timerManager_(timerManager) {
+   timerManager_(timerManager),
+   task_(this) {
 #ifdef USE_ZOOKEEPER
   zkStatusWriter_ = shared_ptr<ZKStatusWriter> (
       new ZKStatusWriter(g_ZKClient, sHandler));
@@ -1039,6 +1040,5 @@ void CountersPublisher::run() {
     zkStatusWriter_->updateCounters();
   }
 #endif
-  shared_ptr<Runnable> task(new CountersPublisher(scribeHandler_, timerManager_));
-  timerManager_->add(task, scribeHandler_->updateStatusInterval * 1000);
+  timerManager_->add(task_, scribeHandler_->updateStatusInterval * 1000);
 }

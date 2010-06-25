@@ -92,6 +92,8 @@ void ZKStatusWriter::updateCounters() {
   }
   int64_t receivedGood = scribeHandler_->getCounter(RECEIVED_GOOD_KEY);
   int64_t receivedGoodRate = 0;
+  LOG_DEBUG("received good: %lld, lastReceivedGood_: %lld, duration: %ld",
+            receivedGood, lastReceivedGood_, (now - lastWriteTime_));
   if (lastReceivedGood_ > 0 && receivedGood > lastReceivedGood_) {
     receivedGoodRate =
         (receivedGood - lastReceivedGood_) / (now - lastWriteTime_);
@@ -101,7 +103,7 @@ void ZKStatusWriter::updateCounters() {
   lastReceivedGood_ = receivedGood;
   lastWriteTime_ = now;
   // add "received good rate" and "publish timestamp"
-  allCountersStream << RECEIVED_GOOD_KEY << ":" << receivedGoodRate << "\n";
+  allCountersStream << RECEIVED_GOOD_RATE_KEY << ":" << receivedGoodRate << "\n";
   allCountersStream << UPDATE_STATUS_TIMESTAMP_KEY << ":" << now << "\n";
 
   string allCountersString = allCountersStream.str();

@@ -120,7 +120,17 @@ bool ZKClient::registerTask() {
 }
 
 bool ZKClient::updateStatus(std::string& current_status) {
-  int rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(), current_status.length() + 1, -1);
+  struct Stat stat;
+  char tmp[0];
+  int rc;
+  if (zoo_exists(zh, zkFullRegistrationName.c_str(), 1, &stat) == ZOK) {
+    rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(),
+                current_status.length() + 1, -1);
+  } else {
+    rc = zoo_create(zh, zkFullRegistrationName.c_str(), current_status.c_str(),
+                    current_status.length() + 1, &ZOO_CREATOR_ALL_ACL,
+                    ZOO_EPHEMERAL, tmp, sizeof(tmp));
+  }
   if (rc) {
     LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
   } else {
@@ -170,7 +180,7 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   }
   LOG_DEBUG("Getting the best remote scribe.");
   boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
-  host_counters_map_t hostCountersMap;
+  HostCountersMap hostCountersMap;
   zkStatusReader->getCountersForAllHosts(parentZnode, hostCountersMap);
 
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);

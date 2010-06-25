@@ -118,21 +118,19 @@ bool HdfsFile::openWrite() {
   std::string base_filename = (LZOCompressionLevel > 0) ?
     filename.substr(0,-3) : filename;
 
-  string tryFile = new string(base_filename);
+  string tryFile = base_filename;
   int attempts = 0;
   // HDFS 0.20 does not support appends, so we keep incrementing a counter
   // until we find a file name that's not taken.
-  while (!hfile && attempts++ < MAX_ATTEMPTS) {
-    if (hdfsExists(fileSys, tryFile.c_str()) == 0) {
-      tryFile = base_filename;
-      tryFile.append(".").append(itoa(attempts));
-     }
-    flags = O_WRONLY;
-    filename = (LZOCompressionLevel > 0) ? tryFile.append(".lzo") : tryFile;
-    base_filename = tryFile;
-    hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+  while (hdfsExists(fileSys, filename.c_str()) && attempts++ < MAX_ATTEMPTS) {
+     tryFile = base_filename;
+     tryFile.append(".").append(itoa(attempts));
+     filename = (LZOCompressionLevel > 0) ? tryFile.append(".lzo") : tryFile;
   }
-  
+  flags = O_WRONLY;
+  base_filename = tryFile;
+  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+
   if (flags & O_APPEND) {
     LOG_OPER("[hdfs] opened for append %s", filename.c_str());
   } else {
