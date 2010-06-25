@@ -49,19 +49,26 @@ bool MsgCounterAggSelector::selectScribeAggregator(host_counters_map_t hostCount
     string& remoteHost,
     unsigned long& remotePort) {
   int max = 0, sum = 0;
-  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
-    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
-    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+  for (host_counters_map_t::iterator iter = hostCountersMap.begin();
+      iter != hostCountersMap.end(); iter++ ) {
+    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ?
+        (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ?
+        (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
     if (measure > max) { max = measure; }
     LOG_DEBUG("ZK AGGREGATOR %s -->", iter->first.c_str());
-    for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
+    for (counter_map_t::iterator counterIter = iter->second.begin();
+        counterIter != iter->second.end(); counterIter++) {
       LOG_DEBUG("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
     }
   }
   map<std::string, int> weight_map;
-  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
-    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
-    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+  for (host_counters_map_t::iterator iter = hostCountersMap.begin();
+      iter != hostCountersMap.end(); iter++ ) {
+    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ?
+        (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ?
+        (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
     weight_map[iter->first] = (int) max - measure + 1;
     sum += weight_map[iter->first];
   }

@@ -23,6 +23,8 @@ static const lzo_uint lzo_block_size = 256 * 1024l;
 #define F_ADLER32_D     0x00000001L
 #define F_ADLER32_C     0x00000002L
 
+#define MAX_ATTEMPTS 10
+
 static const lzo_uint32 lzo_flags = F_ADLER32_D | F_ADLER32_C;
 
 /* LZO1X */
@@ -113,76 +115,76 @@ bool HdfsFile::openWrite() {
     return false;
   }
 
-  const std::string base_filename = (LZOCompressionLevel > 0) ? 
+  std::string base_filename = (LZOCompressionLevel > 0) ?
     filename.substr(0,-3) : filename;
 
-  if (hdfsExists(fileSys, filename.c_str()) == 0) {
-    flags = O_WRONLY|O_APPEND; // file exists, append to it.
-    /* Turn off compression for appends (for now) */
-    if(LZOCompressionLevel != 0) {
-      LOG_OPER("[hdfs] Turning off LZO compression for append operations");
-      LZOCompressionLevel = 0;
-    }
-  } else {
+  string tryFile = new string(base_filename);
+  int attempts = 0;
+  // HDFS 0.20 does not support appends, so we keep incrementing a counter
+  // until we find a file name that's not taken.
+  while (!hfile && attempts++ < MAX_ATTEMPTS) {
+    if (hdfsExists(fileSys, tryFile.c_str()) == 0) {
+      tryFile = base_filename;
+      tryFile.append(".").append(itoa(attempts));
+     }
     flags = O_WRONLY;
+    filename = (LZOCompressionLevel > 0) ? tryFile.append(".lzo") : tryFile;
+    base_filename = tryFile;
+    hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
   }
   
-  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
-  if (hfile) {
-    if (flags & O_APPEND) {
-      LOG_OPER("[hdfs] opened for append %s", filename.c_str());
-    } else {
-      LOG_OPER("[hdfs] opened for write %s", filename.c_str());
-      if(LZOCompressionLevel != 0) {
-        LOG_OPER("[hdfs] writing LZO header to %s", filename.c_str());
+  if (flags & O_APPEND) {
+    LOG_OPER("[hdfs] opened for append %s", filename.c_str());
+  } else {
+    LOG_OPER("[hdfs] opened for write %s", filename.c_str());
+    if(LZOCompressionLevel != 0) {
+      LOG_OPER("[hdfs] writing LZO header to %s", filename.c_str());
 
-        std::string lzo_header((const char*)lzop_magic, sizeof(lzop_magic));
+      std::string lzo_header((const char*)lzop_magic, sizeof(lzop_magic));
 
-        lzo_checksum = 1; // <- LZOP lzo_adler32(0, NULL, 0);  <- LZO
+      lzo_checksum = 1; // <- LZOP lzo_adler32(0, NULL, 0);  <- LZO
 
 #define LZOP_VERSION 0x1010
-        unsigned lzop_version = LZOP_VERSION & 0xffff;
-        LZOStringAppendInt16(lzo_header, lzop_version);
+      unsigned lzop_version = LZOP_VERSION & 0xffff;
+      LZOStringAppendInt16(lzo_header, lzop_version);
 
-        unsigned lzop_lib_version = lzo_version() & 0xffff;
-        LZOStringAppendInt16(lzo_header, lzop_lib_version);
+      unsigned lzop_lib_version = lzo_version() & 0xffff;
+      LZOStringAppendInt16(lzo_header, lzop_lib_version);
 
-        /* Note this version has no crc-32 support or filter support */
-        unsigned lzop_version_needed_to_extract = 0x0940;
-        LZOStringAppendInt16(lzo_header, lzop_version_needed_to_extract);
+      /* Note this version has no crc-32 support or filter support */
+      unsigned lzop_version_needed_to_extract = 0x0940;
+      LZOStringAppendInt16(lzo_header, lzop_version_needed_to_extract);
 
-        /* 8-bit int, but char works */
-        LZOStringAppendChar(lzo_header, lzo_method);
-        LZOStringAppendChar(lzo_header, LZOCompressionLevel);
-        LZOStringAppendInt32(lzo_header, lzo_flags);
+      /* 8-bit int, but char works */
+      LZOStringAppendChar(lzo_header, lzo_method);
+      LZOStringAppendChar(lzo_header, LZOCompressionLevel);
+      LZOStringAppendInt32(lzo_header, lzo_flags);
 
-        /* write mode, mtime, gmtdiff, length of name, name, adler32 init (1)*/
-        LZOStringAppendInt32(lzo_header, 0664); /* mode */
-        LZOStringAppendInt32(lzo_header, 0); /* mtime */
-        LZOStringAppendInt32(lzo_header, 0); /* gmtdiff */
-        
-        const char *baseFile = basename(base_filename.c_str());
+      /* write mode, mtime, gmtdiff, length of name, name, adler32 init (1)*/
+      LZOStringAppendInt32(lzo_header, 0664); /* mode */
+      LZOStringAppendInt32(lzo_header, 0); /* mtime */
+      LZOStringAppendInt32(lzo_header, 0); /* gmtdiff */
 
-        LZOStringAppendChar(lzo_header, strlen(baseFile));
+      const char *baseFile = basename(base_filename.c_str());
 
-        lzo_header.append(baseFile);
-        lzo_checksum = lzo_adler32(lzo_checksum, 
-                                   (unsigned char*)baseFile, strlen(baseFile));
-        LZOStringAppendInt32(lzo_header, lzo_checksum);
+      LZOStringAppendChar(lzo_header, strlen(baseFile));
 
-        tSize bytesWritten = hdfsWrite(fileSys, hfile, 
-                                       lzo_header.data(),
-                                       (tSize) lzo_header.length());
+      lzo_header.append(baseFile);
+      lzo_checksum = lzo_adler32(lzo_checksum,
+          (unsigned char*)baseFile, strlen(baseFile));
+      LZOStringAppendInt32(lzo_header, lzo_checksum);
 
-        if(bytesWritten != (tSize)lzo_header.length()) {
-          LOG_OPER("[hdfs] Failed writing LZO header");
-        }
-        LZObacklogBuffer = std::string("");
+      tSize bytesWritten = hdfsWrite(fileSys, hfile,
+          lzo_header.data(),
+          (tSize) lzo_header.length());
+
+      if(bytesWritten != (tSize)lzo_header.length()) {
+        LOG_OPER("[hdfs] Failed writing LZO header");
       }
+      LZObacklogBuffer = std::string("");
     }
-    return true;
   }
-  return false;
+  return true;
 }
 
 bool HdfsFile::openTruncate() {
