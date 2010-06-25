@@ -38,7 +38,7 @@ bool RandomAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
     remoteHost = remoteScribeZnode.substr(lastSlashIdx + 1, index - lastSlashIdx - 1);
     string port = remoteScribeZnode.substr(index+1, string::npos);
     remotePort = static_cast<unsigned long>(atol(port.c_str()));
-    LOG_DEBUG("Selected remote scribe %s:%lu", remoteHost, remotePort);
+    LOG_DEBUG("Selected remote scribe %s:%lu", remoteHost.c_str(), remotePort);
     return true;
   }
 }
