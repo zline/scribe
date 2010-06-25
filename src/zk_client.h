@@ -51,6 +51,7 @@ class ZKClient {
   std::string zkRegistrationPrefix;
   std::string zkRegistrationName;
   std::string zkFullRegistrationName;
+  std::string zkAggSelectorKey;
 
   unsigned long int scribeHandlerPort;
 };
