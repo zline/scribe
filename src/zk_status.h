@@ -31,6 +31,10 @@ typedef std::map<std::string, int64_t> CounterMap;
 // host name -> counter map
 typedef std::map<std::string, CounterMap> HostCountersMap;
 
+extern const std::string RECEIVED_GOOD_KEY;
+extern const std::string RECEIVED_GOOD_RATE_KEY;
+extern const std::string UPDATE_STATUS_TIMESTAMP_KEY;
+
 // Read the ZKfiles under a parent znode and return the counters maps for all hosts.
 class ZKStatusReader {
  public:

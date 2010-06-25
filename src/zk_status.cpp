@@ -25,9 +25,9 @@ using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
-static string ReceivedGoodStatName = "received good";
-static string ReceivedGoodRateStatName = "received good rate";
-static string UpdateStatusTimestampKey = "update status timestamp";
+const string RECEIVED_GOOD_KEY = "received good";
+const string RECEIVED_GOOD_RATE_KEY = "received good rate";
+const string UPDATE_STATUS_TIMESTAMP_KEY = "update status timestamp";
 
 ZKStatusReader::ZKStatusReader(ZKClient *zkClient)
  : zkClient_(zkClient) {
@@ -84,25 +84,25 @@ void ZKStatusWriter::updateCounters() {
   for (CounterMap::iterator iter = counterMap.begin();
        iter != counterMap.end(); ++iter) {
     // skip all counters that contain ":" and the
-    // ReceivedGoodRateStatName counter 
+    // RECEIVED_GOOD_RATE_KEY counter 
     if ((iter->first.find(":") == string::npos) &&
-        (iter->first.compare(ReceivedGoodRateStatName) != 0)) {
+        (iter->first.compare(RECEIVED_GOOD_RATE_KEY) != 0)) {
       allCountersStream << iter->first << ":" << iter->second << "\n";
     }
   }
-  int64_t receivedGood = scribeHandler_->getCounter(ReceivedGoodStatName);
+  int64_t receivedGood = scribeHandler_->getCounter(RECEIVED_GOOD_KEY);
   int64_t receivedGoodRate = 0;
   if (lastReceivedGood_ > 0 && receivedGood > lastReceivedGood_) {
     receivedGoodRate =
         (receivedGood - lastReceivedGood_) / (now - lastWriteTime_);
     if (receivedGoodRate == 0) receivedGoodRate = 1;
   }
-  scribeHandler_->setCounter(ReceivedGoodRateStatName, receivedGoodRate);
+  scribeHandler_->setCounter(RECEIVED_GOOD_RATE_KEY, receivedGoodRate);
   lastReceivedGood_ = receivedGood;
   lastWriteTime_ = now;
   // add "received good rate" and "publish timestamp"
-  allCountersStream << ReceivedGoodStatName << ":" << receivedGoodRate << "\n";
-  allCountersStream << UpdateStatusTimestampKey << ":" << now << "\n";
+  allCountersStream << RECEIVED_GOOD_KEY << ":" << receivedGoodRate << "\n";
+  allCountersStream << UPDATE_STATUS_TIMESTAMP_KEY << ":" << now << "\n";
 
   string allCountersString = allCountersStream.str();
   zkClient_->updateStatus(allCountersString);
