@@ -19,7 +19,7 @@ RandomAggSelector::RandomAggSelector() {}
 
 RandomAggSelector::~RandomAggSelector() {}
 
-bool RandomAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
+bool RandomAggSelector::selectScribeAggregator(HostCountersMap& hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
   if (hostCountersMap.size() == 0) {
@@ -47,7 +47,7 @@ MsgCounterAggSelector::MsgCounterAggSelector() {}
 
 MsgCounterAggSelector::~MsgCounterAggSelector() {}
 
-bool MsgCounterAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
+bool MsgCounterAggSelector::selectScribeAggregator(HostCountersMap& hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
   int max = 0, sum = 0;
