@@ -47,15 +47,13 @@ class ZKStatusReader {
 class ZKStatusWriter {
  public:
   ZKStatusWriter(boost::shared_ptr<ZKClient> zkClient,
-                 boost::shared_ptr<scribeHandler> scribeHandler,
-                 int minUpdateInterval);
+                 boost::shared_ptr<scribeHandler> scribeHandler);
   virtual ~ZKStatusWriter();
   void updateCounters();
   
  private:
   boost::shared_ptr<ZKClient> zkClient_;
   boost::shared_ptr<scribeHandler> scribeHandler_;
-  int minUpdateInterval_;
   time_t lastWriteTime_;     // in seconds
   int64_t lastReceivedGood_;
 };

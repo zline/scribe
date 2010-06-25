@@ -44,8 +44,7 @@ static shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_MAX_QUEUE_SIZE     5000000LL
 #define DEFAULT_SERVER_THREADS     1
 
-// TODO(wanli): make this configurable
-#define DEFAULT_UPDATE_STATUS_INTERVAL  10
+#define DEFAULT_UPDATE_STATUS_INTERVAL  60
 
 static string log_separator = ":";
 
@@ -155,7 +154,9 @@ int main(int argc, char **argv) {
     timer_manager->threadFactory(thread_factory);
     timer_manager->start();
     shared_ptr<Runnable> task(new CountersPublisher(g_Handler, timer_manager));
-    timer_manager->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
+    // update counters sooner than updateStatusInterval the first time
+    // the task is scheduled.
+    timer_manager->add(task, 1000);
 
     TNonblockingServer server(processor, binaryProtocolFactory,
         g_Handler->port, thread_manager);
@@ -619,6 +620,10 @@ void scribeHandler::initialize() {
     config.getUnsigned("max_msg_per_second", maxMsgPerSecond);
     config.getUnsignedLongLong("max_queue_size", maxQueueSize);
     config.getUnsigned("check_interval", checkPeriod);
+    config.getUnsigned("update_status_interval", updateStatusInterval);
+    if (updateStatusInterval <= 0) {
+      updateStatusInterval = DEFAULT_UPDATE_STATUS_INTERVAL; 
+    }
 
     // If new_thread_per_category, then we will create a new thread/StoreQueue
     // for every unique message category seen.  Otherwise, we will just create
@@ -1015,14 +1020,14 @@ CountersPublisher::CountersPublisher(boost::shared_ptr<scribeHandler> sHandler, 
    timerManager_(timerManager) {
 #ifdef USE_ZOOKEEPER
   zkStatusWriter_ = shared_ptr<ZKStatusWriter> (
-      new ZKStatusWriter(g_ZKClient, sHandler, DEFAULT_UPDATE_STATUS_INTERVAL));
+      new ZKStatusWriter(g_ZKClient, sHandler));
 #endif
 }
 
 CountersPublisher::~CountersPublisher() {}
 
 void CountersPublisher::run() {
-  LOG_OPER("counters publisher run");
+  LOG_DEBUG("counters publisher run");
   scribeHandler_->setQueueSizeCounter(true);
 #ifdef USE_ZOOKEEPER
   if (!g_ZKClient->zkServer.empty() &&
@@ -1032,5 +1037,5 @@ void CountersPublisher::run() {
   }
 #endif
   shared_ptr<Runnable> task(new CountersPublisher(scribeHandler_, timerManager_));
-  timerManager_->add(task, DEFAULT_UPDATE_STATUS_INTERVAL * 1000);
+  timerManager_->add(task, scribeHandler_->updateStatusInterval * 1000);
 }
