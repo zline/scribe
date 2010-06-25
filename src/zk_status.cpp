@@ -92,6 +92,8 @@ void ZKStatusWriter::updateCounters() {
   }
   int64_t receivedGood = scribeHandler_->getCounter(RECEIVED_GOOD_KEY);
   int64_t receivedGoodRate = 0;
+  LOG_DEBUG("received good: %lld, lastReceivedGood_: %lld, duration: %ld",
+            receivedGood, lastReceivedGood_, (now - lastWriteTime_));
   if (lastReceivedGood_ > 0 && receivedGood > lastReceivedGood_) {
     receivedGoodRate =
         (receivedGood - lastReceivedGood_) / (now - lastWriteTime_);
