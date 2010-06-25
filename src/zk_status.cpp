@@ -101,7 +101,7 @@ void ZKStatusWriter::updateCounters() {
   lastReceivedGood_ = receivedGood;
   lastWriteTime_ = now;
   // add "received good rate" and "publish timestamp"
-  allCountersStream << RECEIVED_GOOD_KEY << ":" << receivedGoodRate << "\n";
+  allCountersStream << RECEIVED_GOOD_RATE_KEY << ":" << receivedGoodRate << "\n";
   allCountersStream << UPDATE_STATUS_TIMESTAMP_KEY << ":" << now << "\n";
 
   string allCountersString = allCountersStream.str();
