@@ -65,6 +65,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   // number of threads processing new Thrift connections
   size_t numThriftServerThreads;
+  unsigned long updateStatusInterval;  // periodic interval to publish counters
 
  private:
   unsigned long checkPeriod; // periodic check interval for all contained stores

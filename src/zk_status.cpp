@@ -15,8 +15,9 @@
 //
 // @author Wanli Yang <wanli@twitter.com>
 
-#include "common.h"
+#include <sstream>
 #include <boost/tokenizer.hpp>
+#include "common.h"
 #include "zk_status.h"
 #include "scribe_server.h"
 
@@ -24,8 +25,9 @@ using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
-static string ReceivedGoodStatName = "received good";
-static string ReceivedGoodRateStatName = "received good rate";
+const string RECEIVED_GOOD_KEY = "received good";
+const string RECEIVED_GOOD_RATE_KEY = "received good rate";
+const string UPDATE_STATUS_TIMESTAMP_KEY = "update status timestamp";
 
 ZKStatusReader::ZKStatusReader(ZKClient *zkClient)
  : zkClient_(zkClient) {
@@ -59,10 +61,9 @@ void ZKStatusReader::getCountersForAllHosts(
 }
 
 ZKStatusWriter::ZKStatusWriter(shared_ptr<ZKClient> zkClient,
-                               boost::shared_ptr<scribeHandler> scribeHandler, int minUpdateInterval)
+                               boost::shared_ptr<scribeHandler> scribeHandler)
  : zkClient_(zkClient),
    scribeHandler_(scribeHandler),
-   minUpdateInterval_(minUpdateInterval),
    lastWriteTime_(0),
    lastReceivedGood_(0) {
 }
@@ -73,33 +74,37 @@ ZKStatusWriter::~ZKStatusWriter() {
 void ZKStatusWriter::updateCounters() {
   time_t now;
   time(&now);
-  if (now - lastWriteTime_ < minUpdateInterval_)
+  if (now - lastWriteTime_ < static_cast<int>(scribeHandler_->updateStatusInterval))
     return;
   scribeHandler_->incrementCounter("update counters to zookeeper");
 
   CounterMap counterMap;
   scribeHandler_->getCounters(counterMap);
-  string allCountersString;
-  char buffer[102400];
+  ostringstream allCountersStream;
   for (CounterMap::iterator iter = counterMap.begin();
        iter != counterMap.end(); ++iter) {
-    sprintf(buffer, "%lld", iter->second);
-    // TODO(wanli): skip all counters that contain ":"
-    // TODO(wanli): use string buffer if it is there
-    allCountersString += iter->first + ":" + buffer + "\n";
+    // skip all counters that contain ":" and the
+    // RECEIVED_GOOD_RATE_KEY counter 
+    if ((iter->first.find(":") == string::npos) &&
+        (iter->first.compare(RECEIVED_GOOD_RATE_KEY) != 0)) {
+      allCountersStream << iter->first << ":" << iter->second << "\n";
+    }
   }
-  int64_t receivedGood = scribeHandler_->getCounter(ReceivedGoodStatName);
+  int64_t receivedGood = scribeHandler_->getCounter(RECEIVED_GOOD_KEY);
   int64_t receivedGoodRate = 0;
   if (lastReceivedGood_ > 0 && receivedGood > lastReceivedGood_) {
     receivedGoodRate =
         (receivedGood - lastReceivedGood_) / (now - lastWriteTime_);
     if (receivedGoodRate == 0) receivedGoodRate = 1;
   }
-  scribeHandler_->setCounter(ReceivedGoodRateStatName, receivedGoodRate);
+  scribeHandler_->setCounter(RECEIVED_GOOD_RATE_KEY, receivedGoodRate);
   lastReceivedGood_ = receivedGood;
   lastWriteTime_ = now;
-  // TODO(wanli): also publish the timestamp
+  // add "received good rate" and "publish timestamp"
+  allCountersStream << RECEIVED_GOOD_KEY << ":" << receivedGoodRate << "\n";
+  allCountersStream << UPDATE_STATUS_TIMESTAMP_KEY << ":" << now << "\n";
 
-  LOG_DEBUG("writeCountersToZooKeeper: %s", allCountersString.c_str());
+  string allCountersString = allCountersStream.str();
   zkClient_->updateStatus(allCountersString);
+  LOG_DEBUG("writeCountersToZooKeeper: %s", allCountersString.c_str());
 }

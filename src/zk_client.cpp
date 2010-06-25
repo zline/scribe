@@ -120,7 +120,6 @@ bool ZKClient::registerTask() {
 }
 
 bool ZKClient::updateStatus(std::string& current_status) {
-  // TODO(wanli): check the return value
   int rc = zoo_set(zh, zkFullRegistrationName.c_str(), current_status.c_str(), current_status.length() + 1, -1);
   if (rc) {
     LOG_OPER("Error %d for writing %s to ZK file %s", rc, current_status.c_str(), zkFullRegistrationName.c_str());
@@ -130,7 +129,6 @@ bool ZKClient::updateStatus(std::string& current_status) {
   return rc == 0;
 }
 
-// TODO(wanli): caller should check return value
 bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
   struct String_vector children;
   if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {

@@ -31,6 +31,10 @@ typedef std::map<std::string, int64_t> CounterMap;
 // host name -> counter map
 typedef std::map<std::string, CounterMap> HostCountersMap;
 
+extern const std::string RECEIVED_GOOD_KEY;
+extern const std::string RECEIVED_GOOD_RATE_KEY;
+extern const std::string UPDATE_STATUS_TIMESTAMP_KEY;
+
 // Read the ZKfiles under a parent znode and return the counters maps for all hosts.
 class ZKStatusReader {
  public:
@@ -47,15 +51,13 @@ class ZKStatusReader {
 class ZKStatusWriter {
  public:
   ZKStatusWriter(boost::shared_ptr<ZKClient> zkClient,
-                 boost::shared_ptr<scribeHandler> scribeHandler,
-                 int minUpdateInterval);
+                 boost::shared_ptr<scribeHandler> scribeHandler);
   virtual ~ZKStatusWriter();
   void updateCounters();
   
  private:
   boost::shared_ptr<ZKClient> zkClient_;
   boost::shared_ptr<scribeHandler> scribeHandler_;
-  int minUpdateInterval_;
   time_t lastWriteTime_;     // in seconds
   int64_t lastReceivedGood_;
 };
