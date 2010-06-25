@@ -19,7 +19,7 @@ RandomAggSelector::RandomAggSelector() {}
 
 RandomAggSelector::~RandomAggSelector() {}
 
-bool RandomAggSelector::selectScribeAggregator(host_counters_map_t hostCountersMap,
+bool RandomAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
   if (hostCountersMap.size() == 0) {
@@ -27,7 +27,7 @@ bool RandomAggSelector::selectScribeAggregator(host_counters_map_t hostCountersM
   } else {
     int randomInt = rand() % hostCountersMap.size();
     string remoteScribeZnode;
-    for (host_counters_map_t::iterator iter = hostCountersMap.begin();
+    for (HostCountersMap::iterator iter = hostCountersMap.begin();
         iter != hostCountersMap.end() && randomInt >= 0; iter++ ) {
       remoteScribeZnode = iter->first;
       randomInt -= 1;
@@ -45,21 +45,21 @@ MsgCounterAggSelector::MsgCounterAggSelector() {}
 
 MsgCounterAggSelector::~MsgCounterAggSelector() {}
 
-bool MsgCounterAggSelector::selectScribeAggregator(host_counters_map_t hostCountersMap,
+bool MsgCounterAggSelector::selectScribeAggregator(HostCountersMap hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
   int max = 0, sum = 0;
-  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
+  for (HostCountersMap::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
     if (measure > max) { max = measure; }
     LOG_DEBUG("ZK AGGREGATOR %s -->", iter->first.c_str());
-    for (counter_map_t::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
+    for (CounterMap::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
       LOG_DEBUG("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
     }
   }
   map<std::string, int> weight_map;
-  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
+  for (HostCountersMap::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
     weight_map[iter->first] = (int) max - measure + 1;

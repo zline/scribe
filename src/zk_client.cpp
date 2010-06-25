@@ -170,7 +170,7 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
   }
   LOG_DEBUG("Getting the best remote scribe.");
   boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
-  host_counters_map_t hostCountersMap;
+  HostCountersMap hostCountersMap;
   zkStatusReader->getCountersForAllHosts(parentZnode, hostCountersMap);
 
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);
