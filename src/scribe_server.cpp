@@ -662,6 +662,9 @@ void scribeHandler::initialize() {
     if (!config.getString("zk_registration_prefix", g_ZKClient->zkRegistrationPrefix)) {
       g_ZKClient->zkRegistrationPrefix.clear();
     }
+    if (!config.getString("zk_agg_selector", g_ZKClient->zkAggSelectorKey)) {
+      g_ZKClient->zkAggSelectorKey.clear();
+    }
     g_ZKClient->scribeHandlerPort = g_Handler->port;
 
     if (!g_ZKClient->zkServer.empty() &&

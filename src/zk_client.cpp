@@ -170,13 +170,13 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
     LOG_OPER("No zookeeper connection state! Unable to discover remote scribes.");
     return false;
   }
-
   LOG_DEBUG("Getting the best remote scribe.");
-  string selectorName = "MsgCounterAggSelector";
   boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
-  // TODO(wanli): either pass a list or a map to selector. selector does not need zh.
-  AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkStatusReader, zh, selectorName);
-  ret = aggSelector->selectScribeAggregator(parentZnode, remoteHost, remotePort);
+  host_counters_map_t hostCountersMap;
+  zkStatusReader->getCountersForAllHosts(parentZnode, hostCountersMap);
+
+  AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);
+  ret = aggSelector->selectScribeAggregator(hostCountersMap, remoteHost, remotePort);
 
   if (should_disconnect) {
     disconnect();

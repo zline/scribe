@@ -12,36 +12,35 @@
 #include "scribe_server.h"
 class scribeHandler;
 
+typedef std::map<std::string, int64_t> counter_map_t;
+typedef std::map<std::string, counter_map_t> host_counters_map_t;
+
 class AggSelector {
 public:
-  virtual bool selectScribeAggregator(std::string& parentZnode,
+  virtual bool selectScribeAggregator(host_counters_map_t host_counters_map,
       std::string& _remoteHost,
       unsigned long& _remotePort) = 0;
 };
 
 class AggSelectorFactory {
 public:
-  static AggSelector* createAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, std::string& aggName);
+  static AggSelector* createAggSelector(std::string& aggName);
 };
 
 class RandomAggSelector : public AggSelector {
-private:
-  zhandle_t *zh_;
 public:
-  RandomAggSelector(zhandle_t *zh);
+  RandomAggSelector();
   virtual ~RandomAggSelector();
-  bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
+  bool selectScribeAggregator(host_counters_map_t hostCountersMap, std::string& remoteHost,
       unsigned long& remotePort);
 };
 
 class MsgCounterAggSelector : public AggSelector {
-private:
-  boost::shared_ptr<ZKStatusReader> zkStatusReader_; 
-  zhandle_t *zh_;
+
 public:
-  MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh);
+ MsgCounterAggSelector();
   virtual ~MsgCounterAggSelector();
-  bool selectScribeAggregator(std::string& parentZnode, std::string& remoteHost,
+  bool selectScribeAggregator(host_counters_map_t hostCountersMap, std::string& remoteHost,
       unsigned long& remotePort);
 };
 

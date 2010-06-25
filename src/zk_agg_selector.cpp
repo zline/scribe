@@ -18,51 +18,41 @@ const string QUEUE_SIZE_KEY = "queue size";
 const string MSGS_RECEIVED_KEY = "bytes received rate";
 
 
-RandomAggSelector::RandomAggSelector(zhandle_t *zh)
- : zh_(zh) {
-}
+RandomAggSelector::RandomAggSelector() {}
 
-RandomAggSelector::~RandomAggSelector() {
-  // TODO(wanli): add LOG_OPER here
-}
+RandomAggSelector::~RandomAggSelector() {}
 
-bool RandomAggSelector::selectScribeAggregator(string& parentZnode,
+bool RandomAggSelector::selectScribeAggregator(host_counters_map_t hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
-  struct String_vector children;
-  bool ret;
-  if (ZOK != zoo_get_children(zh_, parentZnode.c_str(), 0, &children)) {
-    ret = false;
-  } else if (0 == children.count) {
-    ret = false;
+  if (hostCountersMap.size() == 0) {
+    return false;
   } else {
-    string remoteScribeZnode = children.data[rand() % children.count];
+    int randomInt = rand() % hostCountersMap.size();
+    string remoteScribeZnode;
+    for (host_counters_map_t::iterator iter = hostCountersMap.begin();
+        iter != hostCountersMap.end() && randomInt >= 0; iter++ ) {
+      remoteScribeZnode = iter->first;
+      randomInt -= 1;
+    }
     size_t index = remoteScribeZnode.find(":");
-    // TODO(wanli): refactor the following into a function
-    remoteHost = remoteScribeZnode.substr(0, index);
+    size_t lastSlashIdx = remoteScribeZnode.find_last_of('/');
+    remoteHost = remoteScribeZnode.substr(lastSlashIdx + 1, index - lastSlashIdx - 1);
     string port = remoteScribeZnode.substr(index+1, string::npos);
     remotePort = static_cast<unsigned long>(atol(port.c_str()));
-    ret = true;
+    return true;
   }
-  return ret;
 }
 
-MsgCounterAggSelector::MsgCounterAggSelector(boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh)
- : zkStatusReader_(zkStatusReader),
-   zh_(zh) {
-  // TODO(wanli): add LOG_OPER here
-}
+MsgCounterAggSelector::MsgCounterAggSelector() {}
 
-MsgCounterAggSelector::~MsgCounterAggSelector() {
-}
+MsgCounterAggSelector::~MsgCounterAggSelector() {}
 
-bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
+bool MsgCounterAggSelector::selectScribeAggregator(host_counters_map_t hostCountersMap,
     string& remoteHost,
     unsigned long& remotePort) {
-  host_counters_map_t host_counters_map;
-  zkStatusReader_->getCountersForAllHosts(parentZnode, host_counters_map);
   int max = 0, sum = 0;
-  for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
+  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(MSGS_RECEIVED_KEY) != 0) ? (int) iter->second[MSGS_RECEIVED_KEY] : 0;
     if (measure > max) { max = measure; }
@@ -72,8 +62,7 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
     }
   }
   map<std::string, int> weight_map;
-  //TODO (dvryaboy) make sum resilient to overflow
-  for (host_counters_map_t::iterator iter = host_counters_map.begin(); iter != host_counters_map.end(); iter++ ) {
+  for (host_counters_map_t::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(MSGS_RECEIVED_KEY) != 0) ? (int) iter->second[MSGS_RECEIVED_KEY] : 0;
     weight_map[iter->first] = (int) max - measure + 1;
@@ -83,7 +72,8 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
   for (map<std::string, int>::iterator iter = weight_map.begin(); iter != weight_map.end(); iter++ ) {
     if ( (r -= iter->second) < 0 ) {
       size_t index = iter->first.find(":");
-      remoteHost = iter->first.substr(parentZnode.length() + 1, index - parentZnode.length() - 1);
+      size_t lastSlashIdx = iter->first.find_last_of('/');
+      remoteHost = iter->first.substr(lastSlashIdx + 1, index - lastSlashIdx - 1);
       string port = iter->first.substr(index+1, string::npos);
       remotePort = static_cast<unsigned long>(atol(port.c_str()));
       LOG_OPER("Selected %s, %ld", remoteHost.c_str(), remotePort);
@@ -94,15 +84,15 @@ bool MsgCounterAggSelector::selectScribeAggregator(string& parentZnode,
   return false;
 }
 
-// make this configurable.
-AggSelector* AggSelectorFactory::createAggSelector(
-    boost::shared_ptr<ZKStatusReader> zkStatusReader, zhandle_t *zh, string& aggName) {
+AggSelector* AggSelectorFactory::createAggSelector(string& aggName) {
   if (aggName.compare("RandomAggSelector") == 0) {
-    return new RandomAggSelector(zh);
+    LOG_OPER("Creating RandomAggSelector by request");
+    return new RandomAggSelector();
   } else if (aggName.compare("MsgCounterAggSelector") == 0) {
-    return new MsgCounterAggSelector(zkStatusReader, zh);
+    LOG_OPER("Creating MsgCounterAggSelector by request");
+    return new MsgCounterAggSelector();
   } else {
-    LOG_OPER("Fall back to random aggregator selector");
-    return new RandomAggSelector(zh);
+    LOG_OPER("Creating RandomAggSelector by default");
+    return new RandomAggSelector();
   }
 }
