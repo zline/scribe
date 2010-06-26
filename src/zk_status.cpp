@@ -51,11 +51,13 @@ void ZKStatusReader::getCountersForAllHosts(
     for (tokenizer::iterator tok_iter = tokens.begin();
          tok_iter != tokens.end(); ++tok_iter) {
       string::size_type pos = tok_iter->find_first_of(":");
-      std::string counterName = tok_iter->substr(0, pos);
-      std::string counterValue = tok_iter->substr(pos + 1);
-      _hostCountersMap[iter->first][counterName] = atoll(counterValue.c_str());
-      LOG_DEBUG("set %s %s => %lld", iter->first.c_str(), counterName.c_str(),
-                _hostCountersMap[iter->first][counterName]);
+      if (pos != string::npos) {
+        std::string counterName = tok_iter->substr(0, pos);
+        std::string counterValue = tok_iter->substr(pos + 1);
+        _hostCountersMap[iter->first][counterName] = atoll(counterValue.c_str());
+        LOG_DEBUG("set %s %s => %lld", iter->first.c_str(), counterName.c_str(),
+                  _hostCountersMap[iter->first][counterName]);
+      }
     }
   }
 }
