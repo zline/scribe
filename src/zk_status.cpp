@@ -48,6 +48,8 @@ void ZKStatusReader::getCountersForAllHosts(
   for (ZKClient::HostStatusMap::iterator iter = hostStatusMap.begin();
        iter != hostStatusMap.end(); ++iter) {
     tokenizer tokens(iter->second, sep);
+    CounterMap counterMap;
+    _hostCountersMap[iter->first] = counterMap;
     for (tokenizer::iterator tok_iter = tokens.begin();
          tok_iter != tokens.end(); ++tok_iter) {
       string::size_type pos = tok_iter->find_first_of(":");
