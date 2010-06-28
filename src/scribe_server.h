@@ -33,14 +33,8 @@
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
-typedef std::map<std::string, boost::shared_ptr<StoreQueue> > category_prefix_map_t;
 
 std::string resultCodeToString(scribe::thrift::ResultCode rc);
-
-void incCounter(std::string category, std::string counter);
-void incCounter(std::string category, std::string counter, long amount);
-void incCounter(std::string counter);
-void incCounter(std::string counter, long amount);
 
 class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
@@ -54,7 +48,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   scribe::thrift::ResultCode Log(const std::vector<scribe::thrift::LogEntry>& messages);
 
-  void getVersion(std::string& _return) {_return = "2.1";}
+  void getVersion(std::string& _return) {_return = scribeversion;}
   facebook::fb303::fb_status getStatus();
   void getStatusDetails(std::string& _return);
   void setStatus(facebook::fb303::fb_status new_status);
@@ -67,22 +61,41 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   size_t numThriftServerThreads;
   unsigned long updateStatusInterval;  // periodic interval to publish counters
 
+
+  inline unsigned long long getMaxQueueSize() {
+    return maxQueueSize;
+  }
+
+  inline const StoreConf& getConfig() const {
+    return config;
+  }
+
+  void incCounter(std::string category, std::string counter);
+  void incCounter(std::string category, std::string counter, long amount);
+  void incCounter(std::string counter);
+  void incCounter(std::string counter, long amount);
+	std::string resultCodeToString(scribe::thrift::ResultCode rc);
+
+  inline void setServer(
+      boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
+    this->server = server;
+  }
+  unsigned long getMaxConn() {
+    return maxConn;
+  }
  private:
+  boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
+
   unsigned long checkPeriod; // periodic check interval for all contained stores
 
   // This map has an entry for each configured category.
   // Each of these entries is a map of type->StoreQueue.
   // The StoreQueue contains a store, which could contain additional stores.
-  category_map_t* pcategories;
-  category_prefix_map_t* pcategory_prefixes;
+  category_map_t categories;
+  category_map_t category_prefixes;
 
-  // the default store
-  boost::shared_ptr<StoreQueue> defaultStore;
-
-  // temp versions of the above 3 pointers to use during initialization
-  category_map_t* pnew_categories;
-  category_prefix_map_t* pnew_category_prefixes;
-  boost::shared_ptr<StoreQueue> tmpDefault;
+  // the default stores
+  store_list_t defaultStores;
 
   std::string configFilename;
   facebook::fb303::fb_status status;
@@ -92,13 +105,16 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long numMsgLastSecond;
   unsigned long maxMsgPerSecond;
   unsigned long long maxQueueSize;
+  unsigned long maxConn;
+  StoreConf config;
   bool newThreadPerCategory;
 
   /* mutex to syncronize access to scribeHandler.
    * A single mutex is fine since it only needs to be locked in write mode
    * during start/stop/reinitialize or when we need to create a new category.
    */
-  apache::thrift::concurrency::ReadWriteMutex scribeHandlerLock;
+  boost::shared_ptr<apache::thrift::concurrency::ReadWriteMutex>
+    scribeHandlerLock;
 
   // disallow empty construction, copy, and assignment
   scribeHandler();
@@ -107,7 +123,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
  protected:
   bool throttleDeny(int num_messages); // returns true if overloaded
-  void deleteCategoryMap(category_map_t *pcats);
+  void deleteCategoryMap(category_map_t& cats);
   const char* statusAsString(facebook::fb303::fb_status new_status);
   bool createCategoryFromModel(const std::string &category,
                                const boost::shared_ptr<StoreQueue> &model);
@@ -140,4 +156,5 @@ class CountersPublisher : public apache::thrift::concurrency::Runnable {
   boost::shared_ptr<Runnable> task_;
 };
 
+extern boost::shared_ptr<scribeHandler> g_Handler;
 #endif // SCRIBE_SERVER_H

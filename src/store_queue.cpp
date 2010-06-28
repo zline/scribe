@@ -19,6 +19,7 @@
 // @author James Wang
 // @author Jason Sobel
 // @author Anthony Giardullo
+// @author John Song
 
 #include "common.h"
 #include "scribe_server.h"
@@ -28,7 +29,7 @@ using namespace boost;
 using namespace scribe::thrift;
 
 #define DEFAULT_TARGET_WRITE_SIZE  16384LL
-#define DEFAULT_MAX_WRITE_INTERVAL 10
+#define DEFAULT_MAX_WRITE_INTERVAL 1
 
 void* threadStatic(void *this_ptr) {
   StoreQueue *queue_ptr = (StoreQueue*)this_ptr;
@@ -49,14 +50,15 @@ StoreQueue::StoreQueue(const string& type, const string& category,
     maxWriteInterval(DEFAULT_MAX_WRITE_INTERVAL),
     mustSucceed(true) {
 
-  store = Store::createStore(type, category, false, multiCategory);
+  store = Store::createStore(this, type, category,
+                            false, multiCategory);
   if (!store) {
     throw std::runtime_error("createStore failed in StoreQueue constructor. Invalid type?");
   }
   storeInitCommon();
 }
 
-StoreQueue::StoreQueue(const shared_ptr<StoreQueue> example,
+StoreQueue::StoreQueue(const boost::shared_ptr<StoreQueue> example,
                        const std::string &category)
   : msgQueueSize(0),
     hasWork(false),
@@ -84,16 +86,6 @@ StoreQueue::~StoreQueue() {
     pthread_mutex_destroy(&hasWorkMutex);
     pthread_cond_destroy(&hasWorkCond);
   }
-}
-
-// WARNING: the number could change after you check this, so don't
-// expect it to be exact. Use for hueristics ONLY.
-unsigned long long StoreQueue::getSize() {
-  unsigned long long retval;
-  pthread_mutex_lock(&msgMutex);
-  retval = msgQueueSize;
-  pthread_mutex_unlock(&msgMutex);
-  return retval;
 }
 
 void StoreQueue::addMessage(boost::shared_ptr<LogEntry> entry) {
@@ -146,30 +138,23 @@ void StoreQueue::stop() {
   if (isModel) {
     LOG_OPER("ERROR: called stop() on model store");
     return;
+  } else if(!stopping) {
+    pthread_mutex_lock(&cmdMutex);
+    StoreCommand cmd(CMD_STOP);
+    cmdQueue.push(cmd);
+    stopping = true;
+    pthread_mutex_unlock(&cmdMutex);
+
+    // signal that there is work to do if not already signaled
+    pthread_mutex_lock(&hasWorkMutex);
+    if (!hasWork) {
+      hasWork = true;
+      pthread_cond_signal(&hasWorkCond);
+    }
+    pthread_mutex_unlock(&hasWorkMutex);
+
+    pthread_join(storeThread, NULL);
   }
-
-  if (stopping) {
-    LOG_OPER("[%s] ERROR: Already stopping storeQueue",
-             categoryHandled.c_str());
-    return;
-  }
-
-  LOG_OPER("[%s] Stopping storeQueue", categoryHandled.c_str());
-  pthread_mutex_lock(&cmdMutex);
-  StoreCommand cmd(CMD_STOP);
-  cmdQueue.push(cmd);
-  stopping = true;
-  pthread_mutex_unlock(&cmdMutex);
-
-  // signal that there is work to do if not already signaled
-  pthread_mutex_lock(&hasWorkMutex);
-  if (!hasWork) {
-    hasWork = true;
-    pthread_cond_signal(&hasWorkCond);
-  }
-  pthread_mutex_unlock(&hasWorkMutex);
-
-  pthread_join(storeThread, NULL);
 }
 
 void StoreQueue::open() {
@@ -209,8 +194,7 @@ std::string StoreQueue::getBaseType() {
 }
 
 void StoreQueue::threadMember() {
-  LOG_OPER("[%s] Starting StoreQueue", categoryHandled.c_str());
-
+  LOG_OPER("store thread starting");
   if (isModel) {
     LOG_OPER("ERROR: store thread starting on model store, exiting");
     return;
@@ -227,9 +211,7 @@ void StoreQueue::threadMember() {
   time_t last_handle_messages;
   time(&last_handle_messages);
 
-  // initialize absolute timestamp
   struct timespec abs_timeout;
-  memset(&abs_timeout, 0, sizeof(struct timespec));
 
   bool stop = false;
   bool open = false;
@@ -262,11 +244,10 @@ void StoreQueue::threadMember() {
     }
 
     // handle periodic tasks
-    //
     time_t this_loop;
     time(&this_loop);
-    if (!stop && open && this_loop - last_periodic_check > checkPeriod) {
-      store->periodicCheck();
+    if (!stop && ((this_loop - last_periodic_check) >= checkPeriod)) {
+      if (open) store->periodicCheck();
       last_periodic_check = this_loop;
     }
 
@@ -278,7 +259,7 @@ void StoreQueue::threadMember() {
     // handle messages if stopping, enough time has passed, or queue is large
     //
     if (stop ||
-        (this_loop - last_handle_messages > maxWriteInterval) ||
+        (this_loop - last_handle_messages >= maxWriteInterval) ||
         msgQueueSize >= targetWriteSize) {
 
       if (failedMessages) {
@@ -309,15 +290,13 @@ void StoreQueue::threadMember() {
     if (!stop) {
       // set timeout to when we need to handle messages or do a periodic check
       abs_timeout.tv_sec = min(last_periodic_check + checkPeriod,
-                               last_handle_messages + maxWriteInterval);
-
-      // must wait until after this time
-      abs_timeout.tv_sec++;
+          last_handle_messages + maxWriteInterval);
+      abs_timeout.tv_nsec = 0;
 
       // wait until there's some work to do or we timeout
       pthread_mutex_lock(&hasWorkMutex);
       if (!hasWork) {
-        pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
+	pthread_cond_timedwait(&hasWorkCond, &hasWorkMutex, &abs_timeout);
       }
       hasWork = false;
       pthread_mutex_unlock(&hasWorkMutex);
@@ -338,12 +317,12 @@ void StoreQueue::processFailedMessages(shared_ptr<logentry_vector_t> messages) {
 
     LOG_OPER("[%s] WARNING: Re-queueing %lu messages!",
              categoryHandled.c_str(), messages->size());
-    incCounter(categoryHandled, "requeue", messages->size());
+    g_Handler->incCounter(categoryHandled, "requeue", messages->size());
   } else {
     // record messages as being lost
     LOG_OPER("[%s] WARNING: Lost %lu messages!",
              categoryHandled.c_str(), messages->size());
-    incCounter(categoryHandled, "lost", messages->size());
+    g_Handler->incCounter(categoryHandled, "lost", messages->size());
   }
 }
 
@@ -363,7 +342,11 @@ void StoreQueue::storeInitCommon() {
 void StoreQueue::configureInline(pStoreConf configuration) {
   // Constructor defaults are fine if these don't exist
   configuration->getUnsignedLongLong("target_write_size", targetWriteSize);
-  configuration->getUnsigned("max_write_interval", (unsigned long&) maxWriteInterval);
+  configuration->getUnsigned("max_write_interval",
+                            (unsigned long&) maxWriteInterval);
+  if (maxWriteInterval == 0) {
+    maxWriteInterval = 1;
+  }
 
   string tmp;
   if (configuration->getString("must_succeed", tmp) && tmp == "no") {
@@ -371,7 +354,7 @@ void StoreQueue::configureInline(pStoreConf configuration) {
     mustSucceed = false;
   }
 
-  store->configure(configuration);
+  store->configure(configuration, pStoreConf());
 }
 
 void StoreQueue::openInline() {
