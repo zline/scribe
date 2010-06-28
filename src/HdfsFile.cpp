@@ -33,8 +33,8 @@ static const int lzo_method = 1;
 
 using namespace std;
 
-HdfsFile::HdfsFile(const std::string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
-  LOG_OPER("[hdfs] Connecting to HDFS");
+HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
+  LOG_DEBUG("[hdfs] Connecting to <%s>", name.c_str());
 
   // First attempt to parse the hdfs cluster from the path name specified.
   // If it fails, then use the default hdfs cluster.
@@ -103,33 +103,50 @@ bool HdfsFile::LZOStringAppendInt16(std::string&str, unsigned v) {
 
 #endif
 
+/*
+ * Open an HDFS file for writing.
+ *
+ * As appends are still experimental most clusters do not support writing
+ * to existing files. For this reason, we must open a unique file name.
+ * Its common to have many scribes writing to the same directory, rotating
+ * files at the same time, so retry a limited number of times before failing.
+ */
 bool HdfsFile::openWrite() {
-  int flags;
-
-  if (!fileSys) {
-    return false;
-  }
-
   if (hfile) {
     LOG_OPER("[hdfs] already opened for write %s", filename.c_str());
     return false;
   }
 
-  std::string base_filename = (LZOCompressionLevel > 0) ?
+  if (!fileSys) {
+    LOG_OPER("[hdfs] No connection! Unable to open <%s>", filename.c_str());
+    return false;
+  }
+
+  string base_filename = (LZOCompressionLevel > 0) ?
     filename.substr(0,-3) : filename;
 
-  string tryFile = base_filename;
   int attempts = 0;
-  // HDFS 0.20 does not support appends, so we keep incrementing a counter
-  // until we find a file name that's not taken.
-  while (hdfsExists(fileSys, filename.c_str()) && attempts++ < MAX_ATTEMPTS) {
-     tryFile = base_filename;
-     tryFile.append(".").append(itoa(attempts));
-     filename = (LZOCompressionLevel > 0) ? tryFile.append(".lzo") : tryFile;
+  int flags = O_WRONLY;
+
+  while ((!hfile) && (attempts++ < MAX_ATTEMPTS)) {
+    if (hdfsExists(fileSys, filename.c_str())) {
+      continue;
+    }
+    ostringstream tryFile;
+    tryFile << base_filename;
+    tryFile << "." << attempts;
+    if (LZOCompressionLevel > 0) {
+      tryFile << ".lzo";
+    }
+    filename = tryFile.str();
+    hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
   }
-  flags = O_WRONLY;
-  base_filename = tryFile;
-  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+
+  if (!hfile) {
+    LOG_OPER("[hdfs] Failed opening file <%s> after <%d> attempts.",
+      filename.c_str(), attempts);
+    return false;
+  }
 
   if (flags & O_APPEND) {
     LOG_OPER("[hdfs] opened for append %s", filename.c_str());
