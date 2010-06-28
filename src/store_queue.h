@@ -19,17 +19,14 @@
 // @author James Wang
 // @author Jason Sobel
 // @author Anthony Giardullo
+// @author John Song
 
 #ifndef SCRIBE_STORE_QUEUE_H
 #define SCRIBE_STORE_QUEUE_H
 
-#include <string>
-#include <queue>
-#include <vector>
-#include <pthread.h>
+#include "common.h"
 
-#include "src/gen-cpp/scribe.h"
-#include "store.h"
+class Store;
 
 /*
  * This class implements a queue and a thread for dispatching
@@ -60,8 +57,9 @@ class StoreQueue {
 
   // WARNING: don't expect this to be exact, because it could change after you check.
   //          This is only for hueristics to decide when we're overloaded.
-  unsigned long long getSize();
-
+  inline unsigned long long getSize() {
+    return msgQueueSize;
+  }
  private:
   void storeInitCommon();
   void configureInline(pStoreConf configuration);
