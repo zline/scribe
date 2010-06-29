@@ -123,24 +123,23 @@ bool HdfsFile::openWrite() {
   }
 
   string base_filename = (LZOCompressionLevel > 0) ?
-    filename.substr(0,-3) : filename;
+    filename.substr(0,filename.size()-3) : filename;
 
   int attempts = 0;
   int flags = O_WRONLY;
 
   while ((!hfile) && (attempts++ < MAX_ATTEMPTS)) {
     ostringstream tryFile;
-    tryFile << base_filename;
-    tryFile << "." << attempts;
+    tryFile << base_filename << attempts;
     if (LZOCompressionLevel > 0) {
       tryFile << ".lzo";
     }
+    filename = tryFile.str();
 
     LOG_DEBUG("[hdfs] Checking if candidate filename exists: %s",
               filename.c_str());
     // hdfsExists returns 0 if the file exists.
     if (hdfsExists(fileSys, filename.c_str())) {
-      filename = tryFile.str();
       hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
     }
   }
@@ -541,9 +540,10 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
   memcpy((char*) host, uri, colon - uri);
   host[colon - uri] = '\0';
  
-  LOG_OPER("[hdfs] Before hdfsConnectNewInstance(%s, %li)", host, port);
   hdfsFS fs = hdfsConnectNewInstance(host, port);
-  LOG_OPER("[hdfs] After hdfsConnectNewInstance");
+  if (!fs) {
+    LOG_OPER("[hdfs] Error connecting to %s:%lu", host, port);
+  }
   free(host);
   return fs;
 }
