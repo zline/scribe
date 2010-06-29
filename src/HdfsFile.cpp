@@ -129,17 +129,20 @@ bool HdfsFile::openWrite() {
   int flags = O_WRONLY;
 
   while ((!hfile) && (attempts++ < MAX_ATTEMPTS)) {
-    if (hdfsExists(fileSys, filename.c_str())) {
-      continue;
-    }
     ostringstream tryFile;
     tryFile << base_filename;
     tryFile << "." << attempts;
     if (LZOCompressionLevel > 0) {
       tryFile << ".lzo";
     }
-    filename = tryFile.str();
-    hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+
+    LOG_DEBUG("[hdfs] Checking if candidate filename exists: %s",
+              filename.c_str());
+    // hdfsExists returns 0 if the file exists.
+    if (hdfsExists(fileSys, filename.c_str())) {
+      filename = tryFile.str();
+      hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+    }
   }
 
   if (!hfile) {
