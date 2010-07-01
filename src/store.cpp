@@ -1819,6 +1819,10 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
     timeout = DEFAULT_SOCKET_TIMEOUT_MS;
   }
 
+  if (!configuration->getInt("max_msg_before_reconnect", msgThresholdBeforeReconnect)) {
+      msgThresholdBeforeReconnect = -1;
+  }
+
   string temp;
   if (configuration->getString("use_conn_pool", temp)) {
     if (0 == temp.compare("yes")) {
@@ -1906,14 +1910,14 @@ bool NetworkStore::open() {
     }
 
     if (useConnPool) {
-      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout));
+      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout), msgThresholdBeforeReconnect);
     } else {
       if (unpooledConn != NULL) {
         LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
             " service = %s", serviceName.c_str());
       }
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
-            servers, static_cast<int>(timeout)));
+            servers, static_cast<int>(timeout), msgThresholdBeforeReconnect));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1928,7 +1932,7 @@ bool NetworkStore::open() {
   } else {
     if (useConnPool) {
       opened = g_connPool.open(remoteHost, remotePort,
-          static_cast<int>(timeout));
+          static_cast<int>(timeout), msgThresholdBeforeReconnect);
     } else {
       // only open unpooled connection if not already open
       if (unpooledConn != NULL) {
@@ -1936,7 +1940,7 @@ bool NetworkStore::open() {
             " %s:%lu", remoteHost.c_str(), remotePort);
       }
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost,
-          remotePort, static_cast<int>(timeout)));
+          remotePort, static_cast<int>(timeout), msgThresholdBeforeReconnect));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1983,6 +1987,7 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->useConnPool = useConnPool;
   store->serviceBased = serviceBased;
   store->timeout = timeout;
+  store->msgThresholdBeforeReconnect = msgThresholdBeforeReconnect;
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
   store->serviceName = serviceName;

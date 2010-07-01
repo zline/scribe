@@ -54,14 +54,14 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
   return key;
 }
 
-bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
+bool ConnPool::open(const string& hostname, unsigned long port, int timeout, int msgThresholdBeforeReconnect) {
         return openCommon(makeKey(hostname, port),
-                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout)));
+                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, msgThresholdBeforeReconnect)));
 }
 
-bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
+bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout, int msgThresholdBeforeReconnect) {
         return openCommon(service,
-                    shared_ptr<scribeConn>(new scribeConn(service, servers, timeout)));
+                    shared_ptr<scribeConn>(new scribeConn(service, servers, timeout, msgThresholdBeforeReconnect)));
 }
 
 void ConnPool::close(const string& hostname, unsigned long port) {
@@ -158,26 +158,28 @@ int ConnPool::sendCommon(const string &key,
   }
 }
 
-scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_)
+scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_, int msgThresholdBeforeReconnect_)
   : refCount(1),
   serviceBased(false),
   remoteHost(hostname),
   remotePort(port),
   timeout(timeout_),
-  lastHeartbeat(time(NULL)) {
+  lastHeartbeat(time(NULL)),
+  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 #ifdef USE_ZOOKEEPER
   zkRegistrationZnode = hostname;
 #endif
 }
 
-scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_)
+scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_, int msgThresholdBeforeReconnect_)
   : refCount(1),
   serviceBased(true),
   serviceName(service),
   serverList(servers),
   timeout(timeout_),
-  lastHeartbeat(time(NULL)) {
+  lastHeartbeat(time(NULL)),
+  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 }
 
@@ -238,17 +240,21 @@ bool scribeConn::open() {
     socket->setConnTimeout(timeout);
     socket->setRecvTimeout(timeout);
     socket->setSendTimeout(timeout);
-    /*
-     * We don't want to send resets to close the connection. Among
-     * other badness it also reduces data reliability. On getting a
-     * rest, the receiving socket will throw any data the receving
-     * process has not yet read.
+
+    /* Turn off SO_LINGER (rely on the TCP stack in the kernel to do the right
+     * thing on close()).
      *
-     * echo 5 > /proc/sys/net/ipv4/tcp_fin_timeout to set the TIME_WAIT
-     * timeout on a system.
-     * sysctl -a | grep tcp
+     * By default, a TSocket has SO_LINGER turned on, with no timeout.
+     * This means that a close() returns immediately and the underlying stack
+     * discards any unsent data, and sends a RST (reset) to the peer.
+     *
+     * This is bad for multiple reasons. The implementation of SO_LINGER is OS
+     * dependent (not always clear of the side effects) and it will confuse the
+     * Network Store clients (will trigger IOException).
+     *
+     * See related issue https://issues.apache.org/jira/browse/THRIFT-748.
      */
-    socket->setLinger(0, 0);
+    socket->setLinger(false, 0);
 
     framedTransport = shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     if (!framedTransport) {
@@ -293,6 +299,38 @@ void scribeConn::close() {
   }
 }
 
+/**
+ * Reopen connection if needed: if max_msg_before_reconnect has been set and
+ * the number of messages sent to a single peer is greater than this threshold,
+ * force a disconnect and reopen a connection.
+ * This can be needed for load balancing and fault tolerance, where a set of
+ * servers constitute the Network Store and are all behind a load balancer or
+ * a single DNS (DNS round robin).
+ */
+void scribeConn::reopenConnectionIfNeeded() {
+  if (msgThresholdBeforeReconnect > 0 && sentSinceLastReconnect > msgThresholdBeforeReconnect) {
+    LOG_OPER("Sent <%ld> messages since last reconnect to  %s, threshold is <%d>, re-opening the connection",
+            sentSinceLastReconnect, connectionString().c_str(), msgThresholdBeforeReconnect);
+
+    if (isOpen()) {
+      close();
+    } else {
+      LOG_OPER("Cannot close the current connection with %s, connection doesn't seem open",
+              connectionString().c_str());
+    }
+
+    if (!isOpen()) {
+      open();
+      // Reset counter for number of messages sent between two reconnections
+      sentSinceLastReconnect = 0;
+      g_Handler->incCounter(NUMBER_OF_RECONNECTS, 1);
+    } else {
+      LOG_OPER("Cannot re-open the connection with %s, connection seems open already",
+              connectionString().c_str());
+    }
+  }
+}
+
 int
 scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
   bool fatal;
@@ -326,7 +364,9 @@ scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
     result = resendClient->Log(msgs);
 
     if (result == OK) {
+      sentSinceLastReconnect += size;
       g_Handler->incCounter("sent", size);
+
       // Periodically log sent message stats. While these statistics are
       // available as counters they may not be being collected, and serve
       // as heartbeats useful when diagnosing issues.
@@ -346,8 +386,9 @@ scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
         sendCounts.clear();
         lastHeartbeat = now;
       }
-      LOG_OPER("Successfully sent <%d> messages to remote scribe server %s",
-          size, connectionString().c_str());
+      LOG_OPER("Successfully sent <%d> messages to remote scribe server %s (<%ld> since last reconnection)",
+          size, connectionString().c_str(), sentSinceLastReconnect);
+      reopenConnectionIfNeeded();
       return (CONN_OK);
     }
     fatal = false;

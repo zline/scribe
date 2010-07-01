@@ -69,6 +69,10 @@ void scribeHandler::incCounter(string counter, long amount) {
   incrementCounter(overall_category + log_separator + counter, amount);
 }
 
+void scribeHandler::setCounter(string counter, long amount) {
+  FacebookBase::setCounter(overall_category + log_separator + counter, amount);
+}
+
 string scribeHandler::resultCodeToString(ResultCode rc) {
   if (rc == OK) {
     return "OK";
