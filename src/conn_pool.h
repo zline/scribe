@@ -96,7 +96,7 @@ typedef std::map<std::string, int> msg_threshold_map_t;
 class ConnPool {
  public:
   ConnPool();
-  ConnPool(msg_threshold_map_t msgThresholdMap_, int defaultThreshold_, int allowableDelta_);
+  ConnPool(msg_threshold_map_t *msgThresholdMap_, int defaultThreshold_, int allowableDelta_);
   virtual ~ConnPool();
 
   bool open(const std::string& host, unsigned long port, int timeout);
@@ -122,7 +122,7 @@ class ConnPool {
   conn_map_t connMap;
   int defThresholdBeforeReconnect;
   int allowableDeltaBeforeReconnect;
-  msg_threshold_map_t msgThresholdMap;
+  msg_threshold_map_t *msgThresholdMap;
 };
 
 #endif // !defined SCRIBE_CONN_POOL_H

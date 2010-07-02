@@ -1826,7 +1826,7 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
   if (!configuration->getInt("allowable_delta_before_reconnect", allowableDeltaBeforeReconnect)) {
     allowableDeltaBeforeReconnect = -1;
   }
-  g_connPool = ConnPool(msgThresholdMap, defThresholdBeforeReconnect, allowableDeltaBeforeReconnect);
+  g_connPool = ConnPool(&msgThresholdMap, defThresholdBeforeReconnect, allowableDeltaBeforeReconnect);
 
   string temp;
   if (configuration->getString("use_conn_pool", temp)) {

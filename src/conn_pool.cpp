@@ -40,7 +40,7 @@ ConnPool::ConnPool()
   pthread_mutex_init(&mapMutex, NULL);
 }
 
-ConnPool::ConnPool(msg_threshold_map_t msgThresholdMap_,
+ConnPool::ConnPool(msg_threshold_map_t *msgThresholdMap_,
     int defaultThreshold_, int allowableDelta_)
   : defThresholdBeforeReconnect(defaultThreshold_),
     allowableDeltaBeforeReconnect(allowableDelta_),
@@ -63,8 +63,8 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
 }
 
 bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
-  int msgThreshold = msgThresholdMap.count(ConnPool::makeKey(hostname, port)) ?
-      msgThresholdMap[ConnPool::makeKey(hostname, port)] : defThresholdBeforeReconnect;
+  int msgThreshold = msgThresholdMap->count(ConnPool::makeKey(hostname, port)) ?
+      msgThresholdMap->find(ConnPool::makeKey(hostname, port))->second : defThresholdBeforeReconnect;
   if (msgThreshold > 0 && msgThreshold > allowableDeltaBeforeReconnect) {
     msgThreshold += 2 * (rand() % allowableDeltaBeforeReconnect) - allowableDeltaBeforeReconnect;
   }
