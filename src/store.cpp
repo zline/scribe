@@ -1819,9 +1819,14 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
     timeout = DEFAULT_SOCKET_TIMEOUT_MS;
   }
 
-  if (!configuration->getInt("max_msg_before_reconnect", msgThresholdBeforeReconnect)) {
-      msgThresholdBeforeReconnect = -1;
+  // TODO figure out an appropriate way to specify the per-connection thresholds and populate msgThresholdMap
+  if (!configuration->getInt("default_max_msg_before_reconnect", defThresholdBeforeReconnect)) {
+    defThresholdBeforeReconnect = -1;
   }
+  if (!configuration->getInt("allowable_delta_before_reconnect", allowableDeltaBeforeReconnect)) {
+    allowableDeltaBeforeReconnect = -1;
+  }
+  g_connPool = ConnPool(msgThresholdMap, defThresholdBeforeReconnect, allowableDeltaBeforeReconnect);
 
   string temp;
   if (configuration->getString("use_conn_pool", temp)) {
@@ -1910,14 +1915,15 @@ bool NetworkStore::open() {
     }
 
     if (useConnPool) {
-      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout), msgThresholdBeforeReconnect);
+      opened = g_connPool.open(serviceName, servers, static_cast<int>(timeout));
     } else {
       if (unpooledConn != NULL) {
         LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
             " service = %s", serviceName.c_str());
       }
+
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
-            servers, static_cast<int>(timeout), msgThresholdBeforeReconnect));
+            servers, static_cast<int>(timeout), defThresholdBeforeReconnect));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1932,15 +1938,18 @@ bool NetworkStore::open() {
   } else {
     if (useConnPool) {
       opened = g_connPool.open(remoteHost, remotePort,
-          static_cast<int>(timeout), msgThresholdBeforeReconnect);
+          static_cast<int>(timeout));
     } else {
       // only open unpooled connection if not already open
       if (unpooledConn != NULL) {
         LOG_OPER("Logic error: NetworkStore::open unpooledConn is not NULL"
             " %s:%lu", remoteHost.c_str(), remotePort);
       }
+      int msgThreshold = msgThresholdMap.count(ConnPool::makeKey(remoteHost, remotePort)) ?
+          msgThresholdMap[ConnPool::makeKey(remoteHost, remotePort)]
+           : defThresholdBeforeReconnect;
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost,
-          remotePort, static_cast<int>(timeout), msgThresholdBeforeReconnect));
+          remotePort, static_cast<int>(timeout), msgThreshold));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1987,7 +1996,8 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->useConnPool = useConnPool;
   store->serviceBased = serviceBased;
   store->timeout = timeout;
-  store->msgThresholdBeforeReconnect = msgThresholdBeforeReconnect;
+  store->defThresholdBeforeReconnect = defThresholdBeforeReconnect;
+  store->msgThresholdMap = msgThresholdMap;
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
   store->serviceName = serviceName;

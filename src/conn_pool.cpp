@@ -35,8 +35,16 @@ using namespace apache::thrift::transport;
 using namespace apache::thrift::server;
 using namespace scribe::thrift;
 
+ConnPool::ConnPool()
+  : defThresholdBeforeReconnect(-1) {
+  pthread_mutex_init(&mapMutex, NULL);
+}
 
-ConnPool::ConnPool() {
+ConnPool::ConnPool(msg_threshold_map_t msgThresholdMap_,
+    int defaultThreshold_, int allowableDelta_)
+  : defThresholdBeforeReconnect(defaultThreshold_),
+    allowableDeltaBeforeReconnect(allowableDelta_),
+    msgThresholdMap(msgThresholdMap_) {
   pthread_mutex_init(&mapMutex, NULL);
 }
 
@@ -54,14 +62,20 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
   return key;
 }
 
-bool ConnPool::open(const string& hostname, unsigned long port, int timeout, int msgThresholdBeforeReconnect) {
-        return openCommon(makeKey(hostname, port),
-                    shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, msgThresholdBeforeReconnect)));
+bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
+  int msgThreshold = msgThresholdMap.count(ConnPool::makeKey(hostname, port)) ?
+      msgThresholdMap[ConnPool::makeKey(hostname, port)] : defThresholdBeforeReconnect;
+  if (msgThreshold > 0 && msgThreshold > allowableDeltaBeforeReconnect) {
+    msgThreshold += 2 * (rand() % allowableDeltaBeforeReconnect) - allowableDeltaBeforeReconnect;
+  }
+  return openCommon(makeKey(hostname, port),
+      shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, msgThreshold)));
 }
 
-bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout, int msgThresholdBeforeReconnect) {
+bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
         return openCommon(service,
-                    shared_ptr<scribeConn>(new scribeConn(service, servers, timeout, msgThresholdBeforeReconnect)));
+                    shared_ptr<scribeConn>(new scribeConn(service, servers, timeout,
+                        defThresholdBeforeReconnect)));
 }
 
 void ConnPool::close(const string& hostname, unsigned long port) {

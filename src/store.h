@@ -396,7 +396,18 @@ class NetworkStore : public Store {
   long int timeout;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
-  long int msgThresholdBeforeReconnect; // long because it works with config code
+
+  // If positive, will force a reconnection after the set number of messages
+  // has been seen.
+  long int defThresholdBeforeReconnect;
+
+  // To avoid massive synchronized spikes of reconnections, the actual
+  // defThresholdBeforeReconnect will be modified by a random number within
+  // +- allowableDelta.
+  // Deltas greater than defThreshold will be summarily ignored.
+  long int allowableDeltaBeforeReconnect;
+  msg_threshold_map_t msgThresholdMap;
+
   std::string serviceName;
   std::string serviceOptions;
   server_vector_t servers;
