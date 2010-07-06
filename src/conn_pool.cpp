@@ -400,7 +400,7 @@ scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
         sendCounts.clear();
         lastHeartbeat = now;
       }
-      LOG_OPER("Successfully sent <%d> messages to remote scribe server %s (<%ld> since last reconnection)",
+      LOG_DEBUG("Successfully sent <%d> messages to remote scribe server %s (<%ld> since last reconnection)",
           size, connectionString().c_str(), sentSinceLastReconnect);
       reopenConnectionIfNeeded();
       return (CONN_OK);
