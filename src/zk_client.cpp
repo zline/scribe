@@ -45,9 +45,15 @@ void watcher(zhandle_t *zzh, int type, int state,
     g_ZKClient->registerTask();
   }
 
+  // Re-register if the session expired.
+  else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
+      (type == ZOO_SESSION_EVENT)) {
+    g_ZKClient->registerTask();
+  }
+
   // This should never happen.
   else {
-    LOG_DEBUG("Received unhandled watch callback: %s %d %d", path, type, state);
+    LOG_OPER("Received unhandled watch callback: %s %d %d", path, type, state);
   }
 }
 
