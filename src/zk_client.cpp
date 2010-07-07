@@ -48,7 +48,8 @@ void watcher(zhandle_t *zzh, int type, int state,
   // Re-register if the session expired.
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
-    g_ZKClient->registerTask();
+    g_ZKClient->disconnect();
+		g_ZKClinet->connect();
   }
 
   // This should never happen.
