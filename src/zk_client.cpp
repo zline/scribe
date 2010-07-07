@@ -49,7 +49,7 @@ void watcher(zhandle_t *zzh, int type, int state,
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
     g_ZKClient->disconnect();
-		g_ZKClinet->connect();
+		g_ZKClient->connect();
   }
 
   // This should never happen.
