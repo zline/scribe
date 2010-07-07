@@ -43,7 +43,6 @@ shared_ptr<scribeHandler> g_Handler;
 #define DEFAULT_SERVER_THREADS     3
 #define DEFAULT_MAX_CONN           0
 
-static string overall_category = "scribe_overall";
 static string log_separator = ":";
 
 #define DEFAULT_UPDATE_STATUS_INTERVAL  60
@@ -58,7 +57,7 @@ void scribeHandler::incCounter(string category, string counter) {
 
 void scribeHandler::incCounter(string category, string counter, long amount) {
   incrementCounter(category + log_separator + counter, amount);
-  incrementCounter(overall_category + log_separator + counter, amount);
+  incrementCounter(counter, amount);
 }
 
 void scribeHandler::incCounter(string counter) {
@@ -66,11 +65,11 @@ void scribeHandler::incCounter(string counter) {
 }
 
 void scribeHandler::incCounter(string counter, long amount) {
-  incrementCounter(overall_category + log_separator + counter, amount);
+  incrementCounter(counter, amount);
 }
 
 void scribeHandler::setCounter(string counter, long amount) {
-  FacebookBase::setCounter(overall_category + log_separator + counter, amount);
+  FacebookBase::setCounter(counter, amount);
 }
 
 string scribeHandler::resultCodeToString(ResultCode rc) {
