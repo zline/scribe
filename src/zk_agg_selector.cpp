@@ -62,8 +62,9 @@ bool MsgCounterAggSelector::selectScribeAggregator(HostCountersMap& hostCounters
   }
   map<std::string, int> weight_map;
   for (HostCountersMap::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
-    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
-    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+    // int qsize = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    int rcv_good = (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+    int measure = rcv_good;
     weight_map[iter->first] = (int) max - measure + 1;
     LOG_OPER("MsgCounterAggSelector. %s has weight %d", iter->first.c_str(), weight_map[iter->first]);
     sum += weight_map[iter->first];
