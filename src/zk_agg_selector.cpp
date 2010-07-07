@@ -52,19 +52,20 @@ bool MsgCounterAggSelector::selectScribeAggregator(HostCountersMap& hostCounters
     unsigned long& remotePort) {
   int max = 0, sum = 0;
   for (HostCountersMap::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
-    int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
-    measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+    int qsize = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
+    int rcv_good = (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
+    // Currently ignoring qsize, since it appears to be very spiky and a poor indicator of the node health.
+    int measure = rcv_good; // was: qsize + rcv_good;
     if (measure > max) { max = measure; }
-    LOG_DEBUG("ZK AGGREGATOR %s -->", iter->first.c_str());
-    for (CounterMap::iterator counterIter = iter->second.begin(); counterIter != iter->second.end(); counterIter++) {
-      LOG_DEBUG("          %s --> %lld", counterIter->first.c_str(), counterIter->second);
-    }
+    LOG_OPER("MsgCounterAggSelector. %s  queue size: %d", iter->first.c_str(), qsize);
+    LOG_OPER("MsgCounterAggSelector. %s  received good rate: %d", iter->first.c_str(), rcv_good);
   }
   map<std::string, int> weight_map;
   for (HostCountersMap::iterator iter = hostCountersMap.begin(); iter != hostCountersMap.end(); iter++ ) {
     int measure = (iter->second.count(QUEUE_SIZE_KEY) != 0) ? (int) iter->second[QUEUE_SIZE_KEY] : 0;
     measure += (iter->second.count(RECEIVED_GOOD_RATE_KEY) != 0) ? (int) iter->second[RECEIVED_GOOD_RATE_KEY] : 0;
     weight_map[iter->first] = (int) max - measure + 1;
+    LOG_OPER("MsgCounterAggSelector. %s has weight %d", iter->first.c_str(), weight_map[iter->first]);
     sum += weight_map[iter->first];
   }
   int r = rand() % sum;

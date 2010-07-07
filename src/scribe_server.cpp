@@ -336,7 +336,8 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Denying would be worse as the memory has already been consumed and
   // misbehaving clients may continue sending it over and over.
   if (messages.capacity() > maxQueueSize) {
-    LOG_OPER("Throttle allowing ridiculously large <%lu> byte packet with <%lu> messages for exceeding queue size.", messages.capacity(), messages.size())
+    LOG_OPER("Throttle allowing ridiculously large <%lu> byte packet with <%lu> messages for exceeding queue size.",
+        messages.capacity(), messages.size())
     return false;
   }
 
@@ -345,8 +346,10 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   setQueueSizeCounter(false);
   unsigned long long queue_size = getCounter("queue size");
   if ((queue_size + messages.capacity()) > maxQueueSize) {
-    LOG_OPER("Throttle denying <%lu> byte packet with <%lu> messages for queue size.",
+    LOG_OPER("Throttle denying <%lu> byte packet with <%lu> messages for queue size. ",
       messages.size(), messages.capacity());
+    LOG_OPER("Current queue size: <%llu>. Max queue size: <%llu>.",
+      queue_size, maxQueueSize);
     return true;
   }
 
@@ -521,7 +524,7 @@ bool scribeHandler::throttleDeny(int num_messages) {
   // If we get a single huge packet it's not cool, but we'd better
   // accept it or we'll keep having to read it and deny it indefinitely
   if (num_messages > (int)maxMsgPerSecond/2) {
-    LOG_OPER("throttle allowing rediculously large packet with <%d> messages", num_messages);
+    LOG_OPER("throttle allowing ridiculously large packet with <%d> messages", num_messages);
     return false;
   }
 

@@ -112,5 +112,5 @@ void ZKStatusWriter::updateCounters() {
 
   string allCountersString = allCountersStream.str();
   zkClient_->updateStatus(allCountersString);
-  LOG_DEBUG("writeCountersToZooKeeper: %s", allCountersString.c_str());
+  LOG_OPER("writeCountersToZooKeeper: %s", allCountersString.c_str());
 }
