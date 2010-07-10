@@ -36,8 +36,10 @@
 
 class scribeConn {
  public:
-  scribeConn(const std::string& host, unsigned long port, int timeout, int msgThresholdBeforeReconnect);
-  scribeConn(const std::string &service, const server_vector_t &servers, int timeout, int msgThresholdBeforeReconnect);
+  scribeConn(const std::string& host, unsigned long port, int timeout,
+      int msgThresholdBeforeReconnect, int allowableDeltaBeforeReconnect);
+  scribeConn(const std::string &service, const server_vector_t &servers, int timeout,
+      int msgThresholdBeforeReconnect, int allowableDeltaBeforeReconnect);
   virtual ~scribeConn();
 
   void addRef();
@@ -75,6 +77,8 @@ class scribeConn {
   pthread_mutex_t mutex;
   time_t lastHeartbeat;
   int msgThresholdBeforeReconnect;
+  int allowableDeltaBeforeReconnect;
+  int currThresholdBeforeReconnect;
   std::map<std::string, int> sendCounts; // Periodically logged for diagnostics
 #ifdef USE_ZOOKEEPER
   std::string zkRegistrationZnode; // Where to autodiscover a remote scribe

@@ -65,17 +65,16 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
 bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
   int msgThreshold = msgThresholdMap->count(ConnPool::makeKey(hostname, port)) ?
       msgThresholdMap->find(ConnPool::makeKey(hostname, port))->second : defThresholdBeforeReconnect;
-  if (msgThreshold > 0 && msgThreshold > allowableDeltaBeforeReconnect) {
-    msgThreshold += 2 * (rand() % allowableDeltaBeforeReconnect) - allowableDeltaBeforeReconnect;
-  }
+  LOG_OPER("Opening connection to %s:%ld. MsgThreshold is %d", hostname.c_str(), port, msgThreshold);
   return openCommon(makeKey(hostname, port),
-      shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, msgThreshold)));
+      shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, 
+          msgThreshold, allowableDeltaBeforeReconnect)));
 }
 
 bool ConnPool::open(const string &service, const server_vector_t &servers, int timeout) {
         return openCommon(service,
                     shared_ptr<scribeConn>(new scribeConn(service, servers, timeout,
-                        defThresholdBeforeReconnect)));
+                        defThresholdBeforeReconnect, allowableDeltaBeforeReconnect)));
 }
 
 void ConnPool::close(const string& hostname, unsigned long port) {
@@ -172,28 +171,34 @@ int ConnPool::sendCommon(const string &key,
   }
 }
 
-scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_, int msgThresholdBeforeReconnect_)
+scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_,
+    int msgThresholdBeforeReconnect_, int allowableDeltaBeforeReconnect_)
   : refCount(1),
   serviceBased(false),
   remoteHost(hostname),
   remotePort(port),
+  sentSinceLastReconnect(0),
   timeout(timeout_),
   lastHeartbeat(time(NULL)),
-  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
+  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_),
+  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 #ifdef USE_ZOOKEEPER
   zkRegistrationZnode = hostname;
 #endif
 }
 
-scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_, int msgThresholdBeforeReconnect_)
+scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_,
+    int msgThresholdBeforeReconnect_, int allowableDeltaBeforeReconnect_)
   : refCount(1),
   serviceBased(true),
   serviceName(service),
   serverList(servers),
+  sentSinceLastReconnect(0),
   timeout(timeout_),
   lastHeartbeat(time(NULL)),
-  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
+  msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_),
+  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 }
 
@@ -231,7 +236,9 @@ bool scribeConn::isOpen() {
 
 bool scribeConn::open() {
   try {
-
+    currThresholdBeforeReconnect = msgThresholdBeforeReconnect + 2 * (rand() % allowableDeltaBeforeReconnect)
+        - allowableDeltaBeforeReconnect;
+    LOG_OPER("MSG_THRESHOLD is %d", currThresholdBeforeReconnect);
 #ifdef USE_ZOOKEEPER
     if (0 == zkRegistrationZnode.find("zk://")) {
       string parentZnode = zkRegistrationZnode.substr(5, string::npos);
@@ -322,9 +329,10 @@ void scribeConn::close() {
  * a single DNS (DNS round robin).
  */
 void scribeConn::reopenConnectionIfNeeded() {
-  if (msgThresholdBeforeReconnect > 0 && sentSinceLastReconnect > msgThresholdBeforeReconnect) {
+	LOG_DEBUG("ReopenConnection():  thresh %d sent %d", currThresholdBeforeReconnect, sentSinceLastReconnect);
+  if (currThresholdBeforeReconnect > 0 && sentSinceLastReconnect > currThresholdBeforeReconnect) {
     LOG_OPER("Sent <%ld> messages since last reconnect to  %s, threshold is <%d>, re-opening the connection",
-            sentSinceLastReconnect, connectionString().c_str(), msgThresholdBeforeReconnect);
+            sentSinceLastReconnect, connectionString().c_str(), currThresholdBeforeReconnect);
 
     if (isOpen()) {
       close();

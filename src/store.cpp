@@ -1837,6 +1837,7 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
   if (!configuration->getInt("default_max_msg_before_reconnect", defThresholdBeforeReconnect)) {
     defThresholdBeforeReconnect = -1;
   }
+	LOG_OPER("DEF THRESHOLD %ld", defThresholdBeforeReconnect);
   if (!configuration->getInt("allowable_delta_before_reconnect", allowableDeltaBeforeReconnect)) {
     allowableDeltaBeforeReconnect = -1;
   }
@@ -1937,7 +1938,8 @@ bool NetworkStore::open() {
       }
 
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(serviceName,
-            servers, static_cast<int>(timeout), defThresholdBeforeReconnect));
+            servers, static_cast<int>(timeout),
+            defThresholdBeforeReconnect, allowableDeltaBeforeReconnect));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
@@ -1963,7 +1965,7 @@ bool NetworkStore::open() {
           msgThresholdMap[ConnPool::makeKey(remoteHost, remotePort)]
            : defThresholdBeforeReconnect;
       unpooledConn = shared_ptr<scribeConn>(new scribeConn(remoteHost,
-          remotePort, static_cast<int>(timeout), msgThreshold));
+          remotePort, static_cast<int>(timeout), msgThreshold, allowableDeltaBeforeReconnect));
       opened = unpooledConn->open();
       if (!opened) {
         unpooledConn.reset();
