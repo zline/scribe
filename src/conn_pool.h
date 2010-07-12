@@ -32,6 +32,9 @@
 // Number of times we re-opened the connection
 #define NUMBER_OF_RECONNECTS "number of reconnections"
 
+#define NEVER_RECONNECT   (-1)
+#define NO_THRESHOLD      (-2)
+
 // Basic scribe class to manage network connections. Used by network store
 
 class scribeConn {
@@ -100,7 +103,6 @@ typedef std::map<std::string, int> msg_threshold_map_t;
 class ConnPool {
  public:
   ConnPool();
-  ConnPool(msg_threshold_map_t *msgThresholdMap_, int defaultThreshold_, int allowableDelta_);
   virtual ~ConnPool();
 
   bool open(const std::string& host, unsigned long port, int timeout);
@@ -113,6 +115,8 @@ class ConnPool {
             boost::shared_ptr<logentry_vector_t> messages);
   int send(const std::string &service,
             boost::shared_ptr<logentry_vector_t> messages);
+  void mergeReconnectThresholds(msg_threshold_map_t *newMap,
+      int newThreshold, int newDelta);
   static std::string makeKey(const std::string& name, unsigned long port);
 
  private:
@@ -126,7 +130,7 @@ class ConnPool {
   conn_map_t connMap;
   int defThresholdBeforeReconnect;
   int allowableDeltaBeforeReconnect;
-  msg_threshold_map_t *msgThresholdMap;
+  msg_threshold_map_t msgThresholdMap;
 };
 
 #endif // !defined SCRIBE_CONN_POOL_H

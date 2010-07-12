@@ -1835,13 +1835,15 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
 
   // TODO figure out an appropriate way to specify the per-connection thresholds and populate msgThresholdMap
   if (!configuration->getInt("default_max_msg_before_reconnect", defThresholdBeforeReconnect)) {
-    defThresholdBeforeReconnect = -1;
+    defThresholdBeforeReconnect = NO_THRESHOLD;
   }
 	LOG_OPER("DEF THRESHOLD %ld", defThresholdBeforeReconnect);
   if (!configuration->getInt("allowable_delta_before_reconnect", allowableDeltaBeforeReconnect)) {
     allowableDeltaBeforeReconnect = -1;
   }
-  g_connPool = ConnPool(&msgThresholdMap, defThresholdBeforeReconnect, allowableDeltaBeforeReconnect);
+  msgThresholdMap[(serviceBased ? serviceName : ConnPool::makeKey(remoteHost, remotePort))] = defThresholdBeforeReconnect;
+  g_connPool.mergeReconnectThresholds(&msgThresholdMap,
+      defThresholdBeforeReconnect, allowableDeltaBeforeReconnect);
 
   string temp;
   if (configuration->getString("use_conn_pool", temp)) {

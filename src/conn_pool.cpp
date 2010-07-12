@@ -29,6 +29,7 @@ using std::string;
 using std::ostringstream;
 using std::map;
 using boost::shared_ptr;
+using namespace std;
 using namespace apache::thrift;
 using namespace apache::thrift::protocol;
 using namespace apache::thrift::transport;
@@ -36,15 +37,8 @@ using namespace apache::thrift::server;
 using namespace scribe::thrift;
 
 ConnPool::ConnPool()
-  : defThresholdBeforeReconnect(-1) {
-  pthread_mutex_init(&mapMutex, NULL);
-}
-
-ConnPool::ConnPool(msg_threshold_map_t *msgThresholdMap_,
-    int defaultThreshold_, int allowableDelta_)
-  : defThresholdBeforeReconnect(defaultThreshold_),
-    allowableDeltaBeforeReconnect(allowableDelta_),
-    msgThresholdMap(msgThresholdMap_) {
+  : defThresholdBeforeReconnect(NO_THRESHOLD),
+    allowableDeltaBeforeReconnect(0) {
   pthread_mutex_init(&mapMutex, NULL);
 }
 
@@ -63,8 +57,8 @@ string ConnPool::makeKey(const string& hostname, unsigned long port) {
 }
 
 bool ConnPool::open(const string& hostname, unsigned long port, int timeout) {
-  int msgThreshold = msgThresholdMap->count(ConnPool::makeKey(hostname, port)) ?
-      msgThresholdMap->find(ConnPool::makeKey(hostname, port))->second : defThresholdBeforeReconnect;
+  int msgThreshold = msgThresholdMap.count(ConnPool::makeKey(hostname, port)) ?
+      msgThresholdMap[ConnPool::makeKey(hostname, port)] : defThresholdBeforeReconnect;
   LOG_OPER("Opening connection to %s:%ld. MsgThreshold is %d", hostname.c_str(), port, msgThreshold);
   return openCommon(makeKey(hostname, port),
       shared_ptr<scribeConn>(new scribeConn(hostname, port, timeout, 
@@ -93,6 +87,31 @@ int ConnPool::send(const string& hostname, unsigned long port,
 int ConnPool::send(const string &service,
                     shared_ptr<logentry_vector_t> messages) {
   return sendCommon(service, messages);
+}
+
+void ConnPool::mergeReconnectThresholds(msg_threshold_map_t *newMap,
+    int newThreshold, int newDelta) {
+  if (defThresholdBeforeReconnect == NO_THRESHOLD ||
+      (newThreshold < defThresholdBeforeReconnect
+          && defThresholdBeforeReconnect == NEVER_RECONNECT)) {
+    defThresholdBeforeReconnect = newThreshold;
+  }
+  if (allowableDeltaBeforeReconnect < newDelta) {
+    allowableDeltaBeforeReconnect = newDelta;
+  }
+
+  // Merge the new threshold map into global map.
+  for (msg_threshold_map_t::iterator iter = newMap->begin();
+      iter != newMap->end(); iter++) {
+    if (msgThresholdMap.count(iter->first) ) {
+      LOG_OPER("Merging thresholds. Key %s. Was %d, suggesting %d.", iter->first.c_str(), msgThresholdMap[iter->first], iter->second);
+      msgThresholdMap[iter->first] =
+          min(msgThresholdMap[iter->first], iter->second);
+      LOG_OPER("Merge result: %s -> %d", iter->first.c_str(), msgThresholdMap[iter->first]);
+    } else {
+      msgThresholdMap[iter->first] = iter->second;
+    }
+  }
 }
 
 bool ConnPool::openCommon(const string &key, shared_ptr<scribeConn> conn) {
@@ -181,7 +200,8 @@ scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_,
   timeout(timeout_),
   lastHeartbeat(time(NULL)),
   msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_),
-  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_) {
+  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_),
+  currThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 #ifdef USE_ZOOKEEPER
   zkRegistrationZnode = hostname;
@@ -198,7 +218,8 @@ scribeConn::scribeConn(const string& service, const server_vector_t &servers, in
   timeout(timeout_),
   lastHeartbeat(time(NULL)),
   msgThresholdBeforeReconnect(msgThresholdBeforeReconnect_),
-  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_) {
+  allowableDeltaBeforeReconnect(allowableDeltaBeforeReconnect_),
+  currThresholdBeforeReconnect(msgThresholdBeforeReconnect_) {
   pthread_mutex_init(&mutex, NULL);
 }
 
@@ -236,9 +257,14 @@ bool scribeConn::isOpen() {
 
 bool scribeConn::open() {
   try {
-    currThresholdBeforeReconnect = msgThresholdBeforeReconnect + 2 * (rand() % allowableDeltaBeforeReconnect)
-        - allowableDeltaBeforeReconnect;
-    LOG_OPER("MSG_THRESHOLD is %d", currThresholdBeforeReconnect);
+    if (msgThresholdBeforeReconnect != NEVER_RECONNECT && msgThresholdBeforeReconnect != NO_THRESHOLD) {
+      if (allowableDeltaBeforeReconnect > msgThresholdBeforeReconnect) {
+        allowableDeltaBeforeReconnect = msgThresholdBeforeReconnect-1;
+      }
+      currThresholdBeforeReconnect = msgThresholdBeforeReconnect + 2 * (rand() % allowableDeltaBeforeReconnect)
+            - allowableDeltaBeforeReconnect;
+      LOG_OPER("MSG_THRESHOLD is %d", currThresholdBeforeReconnect);
+    }
 #ifdef USE_ZOOKEEPER
     if (0 == zkRegistrationZnode.find("zk://")) {
       string parentZnode = zkRegistrationZnode.substr(5, string::npos);
@@ -329,7 +355,7 @@ void scribeConn::close() {
  * a single DNS (DNS round robin).
  */
 void scribeConn::reopenConnectionIfNeeded() {
-	LOG_DEBUG("ReopenConnection():  thresh %d sent %d", currThresholdBeforeReconnect, sentSinceLastReconnect);
+	LOG_DEBUG("ReopenConnection():  thresh %d sent %ld", currThresholdBeforeReconnect, sentSinceLastReconnect);
   if (currThresholdBeforeReconnect > 0 && sentSinceLastReconnect > currThresholdBeforeReconnect) {
     LOG_OPER("Sent <%ld> messages since last reconnect to  %s, threshold is <%d>, re-opening the connection",
             sentSinceLastReconnect, connectionString().c_str(), currThresholdBeforeReconnect);
