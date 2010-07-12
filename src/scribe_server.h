@@ -26,6 +26,8 @@
 
 #include "store.h"
 #include "store_queue.h"
+#include "common.h"
+
 #ifdef USE_ZOOKEEPER
 #include "zk_client.h"
 #include "zk_status.h"
@@ -82,11 +84,22 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
       boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
     this->server = server;
   }
+
+  inline void setTimerManager(boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager_) {
+    timer_manager = timer_manager_;
+  }
+
+  inline void stopTimerManager() {
+    if (timer_manager) {
+      timer_manager->stop();
+    }
+  }
   unsigned long getMaxConn() {
     return maxConn;
   }
  private:
   boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
+  boost::shared_ptr<apache::thrift::concurrency::TimerManager> timer_manager;
 
   unsigned long checkPeriod; // periodic check interval for all contained stores
 

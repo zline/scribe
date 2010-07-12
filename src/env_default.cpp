@@ -132,7 +132,7 @@ void scribe::startServer() {
                                           thread_manager
                                         ));
   g_Handler->setServer(server);
-
+  g_Handler->setTimerManager(timer_manager);
   LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
   fflush(stderr);
 
@@ -155,5 +155,8 @@ void scribe::startServer() {
  * Stopping a scribe server.
  */
 void scribe::stopServer() {
+  if (g_Handler) {
+    g_Handler->stopTimerManager();
+  }
   exit(0);
 }

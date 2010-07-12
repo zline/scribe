@@ -337,7 +337,7 @@ bool scribeConn::open() {
 
 void scribeConn::close() {
   try {
-    LOG_DEBUG("Closing connection to remote scribe server %s",
+    LOG_OPER("Closing connection to remote scribe server %s",
               connectionString().c_str());
     framedTransport->close();
   } catch (const TTransportException& ttx) {
