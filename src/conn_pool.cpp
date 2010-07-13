@@ -92,8 +92,9 @@ int ConnPool::send(const string &service,
 void ConnPool::mergeReconnectThresholds(msg_threshold_map_t *newMap,
     int newThreshold, int newDelta) {
   if (defThresholdBeforeReconnect == NO_THRESHOLD ||
-      (newThreshold < defThresholdBeforeReconnect
-          && defThresholdBeforeReconnect == NEVER_RECONNECT)) {
+      (newThreshold != NO_THRESHOLD
+          && newThreshold < defThresholdBeforeReconnect
+          && defThresholdBeforeReconnect != NEVER_RECONNECT)) {
     defThresholdBeforeReconnect = newThreshold;
   }
   if (allowableDeltaBeforeReconnect < newDelta) {
@@ -104,10 +105,13 @@ void ConnPool::mergeReconnectThresholds(msg_threshold_map_t *newMap,
   for (msg_threshold_map_t::iterator iter = newMap->begin();
       iter != newMap->end(); iter++) {
     if (msgThresholdMap.count(iter->first) ) {
-      LOG_OPER("Merging thresholds. Key %s. Was %d, suggesting %d.", iter->first.c_str(), msgThresholdMap[iter->first], iter->second);
-      msgThresholdMap[iter->first] =
-          min(msgThresholdMap[iter->first], iter->second);
-      LOG_OPER("Merge result: %s -> %d", iter->first.c_str(), msgThresholdMap[iter->first]);
+      if (msgThresholdMap[iter->first] == NO_THRESHOLD ||
+          (iter->second != NO_THRESHOLD
+           && iter->second < msgThresholdMap[iter->first]
+           && msgThresholdMap[iter->first] != NEVER_RECONNECT)) {
+        LOG_OPER("Merging thresholds. Key %s. Was %d, New threshold: %d.", iter->first.c_str(), msgThresholdMap[iter->first], iter->second);
+        msgThresholdMap[iter->first] = iter->second;
+      }
     } else {
       msgThresholdMap[iter->first] = iter->second;
     }
