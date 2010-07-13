@@ -145,17 +145,6 @@ bool ZKClient::updateStatus(std::string& current_status) {
   return rc == 0;
 }
 
-bool ZKClient::getAllHostNames(std::string& parentZnode, HostNamesSet* hostNames) {
-  struct String_vector children;
-  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
-    return false;
-  }
-  for (int i = 0; i < children.count; ++i) {
-    hostNames->insert(children.data[i]);
-  }
-  return true;
-}
-
 // Get the best host:port to send messages to at this time.
 bool ZKClient::getRemoteScribe(std::string& parentZnode,
     string& remoteHost,
@@ -173,14 +162,14 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
     return false;
   }
   LOG_DEBUG("Getting the best remote scribe.");
-  HostNamesSet hostNames;
-  if (!getAllHostNames(parentZnode, &hostNames)) {
+  struct String_vector children;
+  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
     LOG_OPER("Unable to discover remote scribes.");
     return false;
   }
 
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);
-  ret = aggSelector->selectScribeAggregator(hostNames, remoteHost, remotePort);
+  ret = aggSelector->selectScribeAggregator(children, remoteHost, remotePort);
 
   if (should_disconnect) {
     disconnect();

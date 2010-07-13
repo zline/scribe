@@ -16,20 +16,15 @@ RandomAggSelector::RandomAggSelector() {}
 
 RandomAggSelector::~RandomAggSelector() {}
 
-bool RandomAggSelector::selectScribeAggregator(ZKClient::HostNamesSet& hostNames,
+bool RandomAggSelector::selectScribeAggregator(struct String_vector& hostNames,
     string& remoteHost,
     unsigned long& remotePort) {
-  if (hostNames.size() == 0) {
+  if (hostNames.count == 0) {
     LOG_DEBUG("No hosts in counters map!");
     return false;
   } else {
-    int randomInt = rand() % hostNames.size();
-    string remoteScribeZnode;
-    for (ZKClient::HostNamesSet::iterator iter = hostNames.begin();
-        iter != hostNames.end() && randomInt >= 0; iter++ ) {
-      remoteScribeZnode = *iter;
-      randomInt -= 1;
-    }
+    int randomInt = rand() % hostNames.count;
+    string remoteScribeZnode = hostNames.data[randomInt];
     size_t index = remoteScribeZnode.find(":");
     remoteHost = remoteScribeZnode.substr(0, index);
     string port = remoteScribeZnode.substr(index+1, string::npos);

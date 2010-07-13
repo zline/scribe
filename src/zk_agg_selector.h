@@ -14,7 +14,7 @@ class scribeHandler;
 
 class AggSelector {
 public:
-  virtual bool selectScribeAggregator(ZKClient::HostNamesSet& hostNames,
+  virtual bool selectScribeAggregator(struct String_vector& hostNames,
       std::string& _remoteHost,
       unsigned long& _remotePort) = 0;
 };
@@ -28,7 +28,7 @@ class RandomAggSelector : public AggSelector {
 public:
   RandomAggSelector();
   virtual ~RandomAggSelector();
-  bool selectScribeAggregator(ZKClient::HostNamesSet& hostNames, std::string& remoteHost,
+  bool selectScribeAggregator(struct String_vector& hostNames, std::string& remoteHost,
       unsigned long& remotePort);
 };
 

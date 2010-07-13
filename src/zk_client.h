@@ -31,8 +31,8 @@ class scribeHandler;
 
 class ZKClient {
  public:
-  // Set of host names
-  typedef std::set<std::string> HostNamesSet;
+  // Vector of host names
+  typedef std::vector<std::string> HostNames;
 
   ZKClient();
   virtual ~ZKClient();
@@ -41,7 +41,6 @@ class ZKClient {
   void disconnect();
   bool registerTask();
   bool updateStatus(std::string& current_status);
-  bool getAllHostNames(std::string& parentZnode, HostNamesSet* host_names);
   bool getRemoteScribe(std::string& parentZnode,
       std::string& remoteHost,
       unsigned long& remotePort);
