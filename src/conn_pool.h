@@ -13,7 +13,7 @@
 //  limitations under the License.
 //
 // See accompanying file LICENSE or visit the Scribe site at:
-// http://developers.facebook.com/scribe/ 
+// http://developers.facebook.com/scribe/
 //
 // @author Bobby Johnson
 // @author James Wang
@@ -24,27 +24,44 @@
 
 #include "common.h"
 
+/* return codes for ScribeConn and ConnPool */
+#define CONN_FATAL        (-1) /* fatal error. close everything */
+#define CONN_OK           (0)  /* success */
+#define CONN_TRANSIENT    (1)  /* transient error */
+
+// Number of times we re-opened the connection
+#define NUMBER_OF_RECONNECTS "number of reconnections"
+
+#define NEVER_RECONNECT   (-1)
+#define NO_THRESHOLD      (-2)
+
+// Basic scribe class to manage network connections. Used by network store
+
 class scribeConn {
  public:
-  scribeConn(const std::string& host, unsigned long port, int timeout);
-  scribeConn(const std::string &service, const server_vector_t &servers, int timeout);
+  scribeConn(const std::string& host, unsigned long port, int timeout,
+      int msgThresholdBeforeReconnect, int allowableDeltaBeforeReconnect);
+  scribeConn(const std::string &service, const server_vector_t &servers, int timeout,
+      int msgThresholdBeforeReconnect, int allowableDeltaBeforeReconnect);
   virtual ~scribeConn();
-  
+
   void addRef();
   void releaseRef();
   unsigned getRef();
+  void setRef(unsigned);
 
   void lock();
   void unlock();
 
   bool isOpen();
   bool open();
-  void close();    
-  bool send(boost::shared_ptr<logentry_vector_t> messages);
+  void close();
+  int send(boost::shared_ptr<logentry_vector_t> messages);
 
  private:
   std::string connectionString();
-  
+  void reopenConnectionIfNeeded();
+
  protected:
   boost::shared_ptr<apache::thrift::transport::TSocket> socket;
   boost::shared_ptr<apache::thrift::transport::TFramedTransport> framedTransport;
@@ -52,24 +69,37 @@ class scribeConn {
   boost::shared_ptr<scribe::thrift::scribeClient> resendClient;
 
   unsigned refCount;
-    
-  bool smcBased;
-  std::string smcService;
+
+  bool serviceBased;
+  std::string serviceName;
   server_vector_t serverList;
   std::string remoteHost;
   unsigned long remotePort;
+  long sentSinceLastReconnect;
   int timeout; // connection, send, and recv timeout
   pthread_mutex_t mutex;
   time_t lastHeartbeat;
+  int msgThresholdBeforeReconnect;
+  int allowableDeltaBeforeReconnect;
+  int currThresholdBeforeReconnect;
   std::map<std::string, int> sendCounts; // Periodically logged for diagnostics
 #ifdef USE_ZOOKEEPER
   std::string zkRegistrationZnode; // Where to autodiscover a remote scribe
 #endif
+
 };
 
-// key is hostname:port
+// key is hostname:port or the service
 typedef std::map<std::string, boost::shared_ptr<scribeConn> > conn_map_t;
 
+// key is hostname:port or the service
+typedef std::map<std::string, int> msg_threshold_map_t;
+
+// Scribe class to manage connection pooling
+// Maintains a map of (<host,port> or service) to scribeConn class.
+// used to ensure that there is only one connection from one particular
+// scribe server to any host,port or service.
+// see the global g_connPool in store.cpp
 class ConnPool {
  public:
   ConnPool();
@@ -81,22 +111,26 @@ class ConnPool {
   void close(const std::string& host, unsigned long port);
   void close(const std::string &service);
 
-  bool send(const std::string& host, unsigned long port, 
+  int send(const std::string& host, unsigned long port,
             boost::shared_ptr<logentry_vector_t> messages);
-  bool send(const std::string &service,
+  int send(const std::string &service,
             boost::shared_ptr<logentry_vector_t> messages);
-  
+  void mergeReconnectThresholds(msg_threshold_map_t *newMap,
+      int newThreshold, int newDelta);
+  static std::string makeKey(const std::string& name, unsigned long port);
+
  private:
   bool openCommon(const std::string &key, boost::shared_ptr<scribeConn> conn);
   void closeCommon(const std::string &key);
-  bool sendCommon(const std::string &key,
+  int sendCommon(const std::string &key,
                   boost::shared_ptr<logentry_vector_t> messages);
 
  protected:
-  std::string makeKey(const std::string& name, unsigned long port);
-
   pthread_mutex_t mapMutex;
   conn_map_t connMap;
+  int defThresholdBeforeReconnect;
+  int allowableDeltaBeforeReconnect;
+  msg_threshold_map_t msgThresholdMap;
 };
 
 #endif // !defined SCRIBE_CONN_POOL_H

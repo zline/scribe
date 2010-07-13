@@ -50,13 +50,18 @@ HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer
 
 HdfsFile::~HdfsFile() {
   if (fileSys) {
+    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
     hdfsDisconnect(fileSys);
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
   }
   fileSys = 0;
   hfile = 0;
 }
 
 bool HdfsFile::openRead() {
+  if (!fileSys) {
+    fileSys = connectToPath(filename.c_str());
+  }
   if (fileSys) {
     hfile = hdfsOpenFile(fileSys, filename.c_str(), O_RDONLY, 0, 0, 0);
   }
@@ -218,28 +223,16 @@ bool HdfsFile::isOpen() {
 void HdfsFile::close() {
   if (fileSys) {
     if (hfile) {
-      if(LZOCompressionLevel != 0) {
-        /* flush LZO buffer */
-        bool good = false;
-        const std::string& clearBuf = LZOCompress("", true, &good);
-
-        if(good == true) {
-          hdfsWrite(fileSys, hfile, clearBuf.data(), clearBuf.length());
-        }
-
-        /* write EOF */
-        unsigned int eof = 0;
-        hdfsWrite(fileSys, hfile, &eof, sizeof(unsigned int));
-      }
-
-      hdfsCloseFile(fileSys, hfile);
-      LOG_OPER("[hdfs] closed %s", filename.c_str());
-    } else {
-      LOG_OPER("[hdfs] No hfile!  So no write/flush!");
+      LOG_OPER("[hdfs] closing %s", filename.c_str());
+      hdfsCloseFile(fileSys, hfile );
     }
     hfile = 0;
-  } else {
-    LOG_OPER("[hdfs] Filesystem closed on us?! WTF");
+
+    // Close the file system
+    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
+    hdfsDisconnect(fileSys);
+    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+    fileSys = 0;
   }
 }
 
@@ -464,12 +457,18 @@ void HdfsFile::listImpl(const std::string& path,
         }
       }
       hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
+    // A NULL indicates error
+    } else {
+      throw std::runtime_error("hdfsListDirectory call failed");
     }
+  } else if (value == -1) {
+    throw std::runtime_error("hdfsExists call failed");
   }
 }
 
-bool HdfsFile::readNext(std::string& _return) {
-   return false;           // frames not yet supported
+long HdfsFile::readNext(std::string& _return) {
+  /* choose a reasonable value for loss */
+  return (-1000 * 1000 * 1000);
 }
 
 string HdfsFile::getFrame(unsigned data_length) {

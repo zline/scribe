@@ -22,6 +22,7 @@
 // @author Avinash Lakshman
 // @author Anthony Giardullo
 // @author Jan Oravec
+// @author John Song
 
 #ifndef SCRIBE_STORE_H
 #define SCRIBE_STORE_H
@@ -30,6 +31,10 @@
 #include "conf.h"
 #include "file.h"
 #include "conn_pool.h"
+#include "store_queue.h"
+#include "network_dynamic_config.h"
+
+class StoreQueue;
 
 /* defines used by the store class */
 enum roll_period_t {
@@ -48,17 +53,18 @@ class Store {
  public:
   // Creates an object of the appropriate subclass.
   static boost::shared_ptr<Store>
-    createStore(const std::string& type, const std::string& category,
+    createStore(StoreQueue* storeq,
+                const std::string& type, const std::string& category,
                 bool readable = false, bool multi_category = false);
 
-  Store(const std::string& category, const std::string &type,
-        bool multi_category = false);
+  Store(StoreQueue* storeq, const std::string& category,
+        const std::string &type, bool multi_category = false);
   virtual ~Store();
 
   virtual boost::shared_ptr<Store> copy(const std::string &category) = 0;
   virtual bool open() = 0;
   virtual bool isOpen() = 0;
-  virtual void configure(pStoreConf configuration) = 0;
+  virtual void configure(pStoreConf configuration, pStoreConf parent);
   virtual void close() = 0;
 
   // Attempts to store messages and returns true if successful.
@@ -90,6 +96,8 @@ class Store {
   // Don't ever take this lock for multiple stores at the same time
   pthread_mutex_t statusMutex;
 
+  StoreQueue* storeQueue;
+  pStoreConf storeConf;
  private:
   // disallow copy, assignment, and empty construction
   Store(Store& rhs);
@@ -102,13 +110,14 @@ class Store {
  */
 class FileStoreBase : public Store {
  public:
-  FileStoreBase(const std::string& category, const std::string &type,
-                bool multi_category);
+  FileStoreBase(StoreQueue* storeq,
+                const std::string& category,
+                const std::string &type, bool multi_category);
   ~FileStoreBase();
 
   virtual void copyCommon(const FileStoreBase *base);
   bool open();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void periodicCheck();
 
  protected:
@@ -118,7 +127,8 @@ class FileStoreBase : public Store {
   virtual void rotateFile(time_t currentTime = 0);
 
 
-  // appends information about the current file to a log file in the same directory
+  // appends information about the current file to a log file in the same
+  // directory
   virtual void printStats();
 
   // Returns the number of bytes to pad to align to the specified block size
@@ -158,6 +168,7 @@ class FileStoreBase : public Store {
   bool storeTree;
   bool writeStats;
   unsigned long lzoCompressionLevel;
+  bool rotateOnReopen;
 
   // State
   unsigned long currentSize;
@@ -182,19 +193,20 @@ class FileStoreBase : public Store {
 class FileStore : public FileStoreBase {
 
  public:
-  FileStore(const std::string& category, bool multi_category,
-            bool is_buffer_file = false);
+  FileStore(StoreQueue* storeq, const std::string& category,
+            bool multi_category, bool is_buffer_file = false);
   ~FileStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
 
   // Each read does its own open and close and gets the whole file.
-  // This is separate from the write file, and not really a consistent interface.
+  // This is separate from the write file, and not really a consistent
+  // interface.
   bool readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,
                   struct tm* now);
   virtual bool replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
@@ -219,6 +231,7 @@ class FileStore : public FileStoreBase {
   // disallow copy, assignment, and empty construction
   FileStore(FileStore& rhs);
   FileStore& operator=(FileStore& rhs);
+  long lostBytes_;
 };
 
 /*
@@ -226,14 +239,16 @@ class FileStore : public FileStoreBase {
  */
 class ThriftFileStore : public FileStoreBase {
  public:
-  ThriftFileStore(const std::string& category, bool multi_category);
+  ThriftFileStore(StoreQueue* storeq,
+                  const std::string& category,
+                  bool multi_category);
   ~ThriftFileStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
   bool createFileDirectory();
@@ -267,14 +282,16 @@ class ThriftFileStore : public FileStoreBase {
 class BufferStore : public Store {
 
  public:
-  BufferStore(const std::string& category, bool multi_category);
+  BufferStore(StoreQueue* storeq,
+              const std::string& category,
+              bool multi_category);
   ~BufferStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
   void periodicCheck();
@@ -296,24 +313,50 @@ class BufferStore : public Store {
     SENDING_BUFFER,  // connected to primary and sending data from secondary
   };
 
-  void changeState(buffer_state_t new_state); // handles state pre and post conditions
+  // handles state pre and post conditions
+  void changeState(buffer_state_t new_state);
   const char* stateAsString(buffer_state_t state);
 
-  time_t getNewRetryInterval(); // generates a random interval based on config
+  void setNewRetryInterval(bool);
 
   // configuration
-  unsigned long maxQueueLength;   // in number of messages
-  unsigned long bufferSendRate;   // number of buffer files sent each periodicCheck
+  unsigned long bufferSendRate;   // number of buffer files
+                                  // sent each periodicCheck
   time_t avgRetryInterval;        // in seconds, for retrying primary store open
   time_t retryIntervalRange;      // in seconds
   bool   replayBuffer;            // whether to send buffers from
                                   // secondary store to primary
+  bool adaptiveBackoff;           // Adaptive backoff mode indicator
+  unsigned long minRetryInterval; // The min the retryInterval can become
+  unsigned long maxRetryInterval; // The max the retryInterval can become
+  unsigned long maxRandomOffset;  // The max random offset added
+                                  // to the retry interval
+
 
   // state
+  time_t retryInterval;           // the current retry interval in seconds
+  unsigned long numContSuccess;   // number of continuous successful sends
   buffer_state_t state;
-  time_t lastWriteTime;
   time_t lastOpenAttempt;
-  time_t retryInterval;
+
+  bool flushStreaming;            // When flushStreaming is set to true,
+                                  // incoming messages to a buffere store
+                                  // that still has buffereed data in the
+                                  // secondary store, i.e. buffer store in
+                                  // SENDING_BUFFER phase, will be sent to the
+                                  // primary store directly.  If false,
+                                  // then in coming messages will first
+                                  // be written to secondary store, and
+                                  // later flushed out to the primary
+                                  // store.
+
+  double maxByPassRatio;          // During the buffer flushing phase, if
+                                  // flushStreaming is enabled, the max
+                                  // size of message queued before buffer
+                                  // flushing yielding to sending current
+                                  // incoming messages is calculated by
+                                  // multiple max_queue_size with
+                                  // buffer_bypass_max_ratio.
 
  private:
   // disallow copy, assignment, and empty construction
@@ -330,31 +373,49 @@ class BufferStore : public Store {
 class NetworkStore : public Store {
 
  public:
-  NetworkStore(const std::string& category, bool multi_category);
+  NetworkStore(StoreQueue* storeq,
+               const std::string& category,
+               bool multi_category);
   ~NetworkStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
+  void periodicCheck();
 
  protected:
   static const long int DEFAULT_SOCKET_TIMEOUT_MS = 5000; // 5 sec timeout
 
   // configuration
   bool useConnPool;
-  bool smcBased;
+  bool serviceBased;
   long int timeout;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
-  std::string smcService;
+
+  // If positive, will force a reconnection after the set number of messages
+  // has been seen.
+  long int defThresholdBeforeReconnect;
+
+  // To avoid massive synchronized spikes of reconnections, the actual
+  // defThresholdBeforeReconnect will be modified by a random number within
+  // +- allowableDelta.
+  // Deltas greater than defThreshold will be summarily ignored.
+  long int allowableDeltaBeforeReconnect;
+  msg_threshold_map_t msgThresholdMap;
+
+  std::string serviceName;
   std::string serviceOptions;
   server_vector_t servers;
   unsigned long serviceCacheTimeout;
   time_t lastServiceCheck;
+  // if true do not update status to reflect failure to connect
+  bool ignoreNetworkError;
+  NetworkDynamicConfigMod* configmod;
 
   // state
   bool opened;
@@ -374,14 +435,16 @@ class NetworkStore : public Store {
 class BucketStore : public Store {
 
  public:
-  BucketStore(const std::string& category, bool multi_category);
+  BucketStore(StoreQueue* storeq,
+              const std::string& category,
+              bool multi_category);
   ~BucketStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
   void flush();
   void periodicCheck();
@@ -424,20 +487,23 @@ class BucketStore : public Store {
 class NullStore : public Store {
 
  public:
-  NullStore(const std::string& category, bool multi_category);
+  NullStore(StoreQueue* storeq,
+            const std::string& category,
+            bool multi_category);
   virtual ~NullStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   void flush();
 
   // null stores are readable, but you never get anything
-  virtual bool readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,                          struct tm* now);
+  virtual bool readOldest(boost::shared_ptr<logentry_vector_t> messages,
+                          struct tm* now);
   virtual bool replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
                              struct tm* now);
   virtual void deleteOldest(struct tm* now);
@@ -457,13 +523,15 @@ class NullStore : public Store {
  */
 class MultiStore : public Store {
  public:
-  MultiStore(const std::string& category, bool multi_category);
+  MultiStore(StoreQueue* storeq,
+             const std::string& category,
+             bool multi_category);
   ~MultiStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
@@ -499,15 +567,18 @@ class MultiStore : public Store {
  */
 class CategoryStore : public Store {
  public:
-  CategoryStore(const std::string& category, bool multi_category);
-  CategoryStore(const std::string& category, const std::string& name,
-                bool multiCategory);
+  CategoryStore(StoreQueue* storeq,
+                const std::string& category,
+                bool multi_category);
+  CategoryStore(StoreQueue* storeq,
+                const std::string& category,
+                const std::string& name, bool multiCategory);
   ~CategoryStore();
 
   boost::shared_ptr<Store> copy(const std::string &category);
   bool open();
   bool isOpen();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
   void close();
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
@@ -515,7 +586,8 @@ class CategoryStore : public Store {
   void flush();
 
  protected:
-  void configureCommon(pStoreConf configuration, const std::string type);
+  void configureCommon(pStoreConf configuration, pStoreConf parent,
+                       const std::string type);
   boost::shared_ptr<Store> modelStore;
   std::map<std::string, boost::shared_ptr<Store> > stores;
 
@@ -532,9 +604,11 @@ class CategoryStore : public Store {
  */
 class MultiFileStore : public CategoryStore {
  public:
-  MultiFileStore(const std::string& category, bool multi_category);
+  MultiFileStore(StoreQueue* storeq,
+                const std::string& category,
+                bool multi_category);
   ~MultiFileStore();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
 
  private:
   MultiFileStore();
@@ -549,9 +623,11 @@ class MultiFileStore : public CategoryStore {
  */
 class ThriftMultiFileStore : public CategoryStore {
  public:
-  ThriftMultiFileStore(const std::string& category, bool multi_category);
+  ThriftMultiFileStore(StoreQueue* storeq,
+                       const std::string& category,
+                       bool multi_category);
   ~ThriftMultiFileStore();
-  void configure(pStoreConf configuration);
+  void configure(pStoreConf configuration, pStoreConf parent);
 
 
  private:

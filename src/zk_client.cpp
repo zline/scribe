@@ -45,10 +45,10 @@ void watcher(zhandle_t *zzh, int type, int state,
     g_ZKClient->registerTask();
   }
 
-  // Re-register if the session expired.
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
-    g_ZKClient->registerTask();
+    g_ZKClient->disconnect();
+		g_ZKClient->connect();
   }
 
   // This should never happen.
@@ -145,29 +145,6 @@ bool ZKClient::updateStatus(std::string& current_status) {
   return rc == 0;
 }
 
-bool ZKClient::getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map) {
-  struct String_vector children;
-  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
-    return false;
-  }
-  // The znode can be 1M, but it is not that big yet. 
-  char buffer[102400];
-  int allocated_buflen = sizeof(buffer);
-  for (int i = 0; i < children.count; ++i) {
-    int buflen = allocated_buflen;
-    std::string zk_file_path = parentZnode + "/" + children.data[i];
-    int rc = zoo_get(zh, zk_file_path.c_str(), 0, buffer, &buflen, NULL);
-    if (rc) {
-      LOG_OPER("Error %d for reading to ZK file %s", rc, zk_file_path.c_str());
-    } else {
-      string content = buffer;
-      LOG_DEBUG("ZK file %s size: %ld content: %s", zk_file_path.c_str(), content.length(), content.c_str());
-      (*host_status_map)[zk_file_path] = content;
-    }
-  }
-  return true;
-}
-
 // Get the best host:port to send messages to at this time.
 bool ZKClient::getRemoteScribe(std::string& parentZnode,
     string& remoteHost,
@@ -185,12 +162,14 @@ bool ZKClient::getRemoteScribe(std::string& parentZnode,
     return false;
   }
   LOG_DEBUG("Getting the best remote scribe.");
-  boost::shared_ptr<ZKStatusReader> zkStatusReader(new ZKStatusReader(this));
-  HostCountersMap hostCountersMap;
-  zkStatusReader->getCountersForAllHosts(parentZnode, hostCountersMap);
+  struct String_vector children;
+  if (zoo_get_children(zh, parentZnode.c_str(), 0, &children) != ZOK || children.count == 0) {
+    LOG_OPER("Unable to discover remote scribes.");
+    return false;
+  }
 
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);
-  ret = aggSelector->selectScribeAggregator(hostCountersMap, remoteHost, remotePort);
+  ret = aggSelector->selectScribeAggregator(children, remoteHost, remotePort);
 
   if (should_disconnect) {
     disconnect();
