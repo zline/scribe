@@ -111,7 +111,6 @@ endif
 if USE_ZOOKEEPER
   scribed_SOURCES += zk_client.cpp
   scribed_SOURCES += zk_agg_selector.cpp
-  scribed_SOURCES += zk_status.cpp
 endif
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
 

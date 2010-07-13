@@ -104,26 +104,16 @@ void scribe::startServer() {
   );
   boost::shared_ptr<ThreadManager> thread_manager;
 
-  shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
-
   if (g_Handler->numThriftServerThreads > 1) {
     // create a ThreadManager to process incoming calls
     thread_manager = ThreadManager::newSimpleThreadManager(
       g_Handler->numThriftServerThreads
     );
 
+    shared_ptr<PosixThreadFactory> thread_factory(new PosixThreadFactory());
     thread_manager->threadFactory(thread_factory);
     thread_manager->start();
   }
-
-  // add a TimerManager
-  shared_ptr<TimerManager> timer_manager(new TimerManager);
-  timer_manager->threadFactory(thread_factory);
-  timer_manager->start();
-  shared_ptr<Runnable> task(new CountersPublisher(g_Handler, timer_manager));
-  // update counters sooner than updateStatusInterval the first time
-  // the task is scheduled.
-  timer_manager->add(task, 1000);
 
   shared_ptr<TNonblockingServer> server(new TNonblockingServer(
                                           processor,
@@ -132,7 +122,6 @@ void scribe::startServer() {
                                           thread_manager
                                         ));
   g_Handler->setServer(server);
-  g_Handler->setTimerManager(timer_manager);
   LOG_OPER("Starting scribe server on port %lu", g_Handler->port);
   fflush(stderr);
 
@@ -155,8 +144,5 @@ void scribe::startServer() {
  * Stopping a scribe server.
  */
 void scribe::stopServer() {
-  if (g_Handler) {
-    g_Handler->stopTimerManager();
-  }
   exit(0);
 }

@@ -12,11 +12,9 @@
 #include "scribe_server.h"
 class scribeHandler;
 
-typedef std::map<std::string, int64_t> counter_map_t;
-
 class AggSelector {
 public:
-  virtual bool selectScribeAggregator(HostCountersMap& host_counters_map,
+  virtual bool selectScribeAggregator(ZKClient::HostNamesSet& hostNames,
       std::string& _remoteHost,
       unsigned long& _remotePort) = 0;
 };
@@ -30,16 +28,7 @@ class RandomAggSelector : public AggSelector {
 public:
   RandomAggSelector();
   virtual ~RandomAggSelector();
-  bool selectScribeAggregator(HostCountersMap& hostCountersMap, std::string& remoteHost,
-      unsigned long& remotePort);
-};
-
-class MsgCounterAggSelector : public AggSelector {
-
-public:
- MsgCounterAggSelector();
-  virtual ~MsgCounterAggSelector();
-  bool selectScribeAggregator(HostCountersMap& hostCountersMap, std::string& remoteHost,
+  bool selectScribeAggregator(ZKClient::HostNamesSet& hostNames, std::string& remoteHost,
       unsigned long& remotePort);
 };
 

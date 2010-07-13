@@ -964,28 +964,3 @@ void scribeHandler::deleteCategoryMap(category_map_t& cats) {
   } // for each category
   cats.clear();
 }
-
-CountersPublisher::CountersPublisher(boost::shared_ptr<scribeHandler> sHandler, shared_ptr<TimerManager> timerManager)
- : scribeHandler_(sHandler),
-   timerManager_(timerManager),
-   task_(this) {
-#ifdef USE_ZOOKEEPER
-  zkStatusWriter_ = shared_ptr<ZKStatusWriter> (
-      new ZKStatusWriter(g_ZKClient, sHandler));
-#endif
-}
-
-CountersPublisher::~CountersPublisher() {}
-
-void CountersPublisher::run() {
-  LOG_DEBUG("counters publisher run");
-  scribeHandler_->setQueueSizeCounter(true);
-#ifdef USE_ZOOKEEPER
-  if (!g_ZKClient->zkServer.empty() &&
-      !g_ZKClient->zkRegistrationPrefix.empty() &&
-      g_ZKClient->zh ) {
-    zkStatusWriter_->updateCounters();
-  }
-#endif
-  timerManager_->add(task_, scribeHandler_->updateStatusInterval * 1000);
-}

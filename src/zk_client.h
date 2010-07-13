@@ -31,8 +31,8 @@ class scribeHandler;
 
 class ZKClient {
  public:
-  // host_name -> ZK file content map.
-  typedef std::map<std::string, std::string> HostStatusMap;
+  // Set of host names
+  typedef std::set<std::string> HostNamesSet;
 
   ZKClient();
   virtual ~ZKClient();
@@ -41,7 +41,7 @@ class ZKClient {
   void disconnect();
   bool registerTask();
   bool updateStatus(std::string& current_status);
-  bool getAllHostsStatus(std::string& parentZnode, HostStatusMap* host_status_map);
+  bool getAllHostNames(std::string& parentZnode, HostNamesSet* host_names);
   bool getRemoteScribe(std::string& parentZnode,
       std::string& remoteHost,
       unsigned long& remotePort);
