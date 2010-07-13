@@ -31,9 +31,6 @@ class scribeHandler;
 
 class ZKClient {
  public:
-  // Vector of host names
-  typedef std::vector<std::string> HostNames;
-
   ZKClient();
   virtual ~ZKClient();
 
