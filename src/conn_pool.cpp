@@ -261,8 +261,10 @@ bool scribeConn::open() {
       if (allowableDeltaBeforeReconnect > msgThresholdBeforeReconnect) {
         allowableDeltaBeforeReconnect = msgThresholdBeforeReconnect-1;
       }
-      currThresholdBeforeReconnect = msgThresholdBeforeReconnect + 2 * (rand() % allowableDeltaBeforeReconnect)
-            - allowableDeltaBeforeReconnect;
+      if (allowableDeltaBeforeReconnect > 0) {
+        currThresholdBeforeReconnect = msgThresholdBeforeReconnect + 2 * (rand() % allowableDeltaBeforeReconnect)
+              - allowableDeltaBeforeReconnect;
+      }
       LOG_OPER("MSG_THRESHOLD is %d", currThresholdBeforeReconnect);
     }
 #ifdef USE_ZOOKEEPER
