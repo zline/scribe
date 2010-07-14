@@ -24,6 +24,7 @@
 int debug_level = 0;
 #include "common.h"
 #include "scribe_server.h"
+#include "SourceConf.h"
 
 using namespace apache::thrift::concurrency;
 
@@ -537,6 +538,36 @@ bool scribeHandler::throttleDeny(int num_messages) {
   }
 }
 
+void scribeHandler::startSources() {
+  string sourcesConfig;
+  if (config.getString("sources_config", sourcesConfig)) {
+    using boost::property_tree::ptree;
+
+    shared_ptr<SourceConf> sourceConf =
+      shared_ptr<SourceConf>(new SourceConf());
+    sourceConf->load(sourcesConfig);
+
+    vector<ptree> allSources;
+    sourceConf->getAllSources(allSources);
+    for (vector<ptree>::iterator allSourcesIter = allSources.begin();
+         allSourcesIter != allSources.end(); ++allSourcesIter) {
+      shared_ptr<Source> newSource;
+      if (Source::createSource(*allSourcesIter, newSource)) {
+        newSource->start();
+        runningSources.push_back(newSource);
+      }
+    }
+  }
+}
+
+void scribeHandler::stopSources() {
+  for (source_list_t::iterator source_iter = runningSources.begin();
+       source_iter != runningSources.end(); ++source_iter) {
+    (*source_iter)->stop();
+  }
+  runningSources.clear();
+}
+
 void scribeHandler::stopStores() {
   setStatus(STOPPING);
   shared_ptr<store_list_t> store_list;
@@ -554,6 +585,7 @@ void scribeHandler::stopStores() {
 
 void scribeHandler::shutdown() {
   RWGuard monitor(*scribeHandlerLock, true);
+  stopSources();
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
@@ -567,6 +599,7 @@ void scribeHandler::reinitialize() {
   // This is done without shutting down the Thrift server, so this will not
   // reconfigure any server settings such as port number.
   LOG_OPER("reinitializing");
+  stopSources();
   stopStores();
   initialize();
 }
@@ -632,6 +665,8 @@ void scribeHandler::initialize() {
     if (port <= 0) {
       throw runtime_error("No port number configured");
     }
+
+    startSources();
 
 #ifdef USE_ZOOKEEPER
     setStatusDetails("initialize ZKClient");
