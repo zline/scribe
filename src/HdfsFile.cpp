@@ -444,7 +444,9 @@ void HdfsFile::listImpl(const std::string& path,
   }
 
   int value = hdfsExists(fileSys, path.c_str());
-  if (value == 0) {
+  if (value == -1) {
+    return;
+  } else {
     int numEntries = 0;
     hdfsFileInfo* pHdfsFileInfo = 0;
     pHdfsFileInfo = hdfsListDirectory(fileSys, path.c_str(), &numEntries);
@@ -461,8 +463,6 @@ void HdfsFile::listImpl(const std::string& path,
     } else {
       throw std::runtime_error("hdfsListDirectory call failed");
     }
-  } else if (value == -1) {
-    throw std::runtime_error("hdfsExists call failed");
   }
 }
 
