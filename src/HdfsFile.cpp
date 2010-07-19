@@ -221,19 +221,41 @@ bool HdfsFile::isOpen() {
 }
 
 void HdfsFile::close() {
-  if (fileSys) {
-    if (hfile) {
-      LOG_OPER("[hdfs] closing %s", filename.c_str());
-      hdfsCloseFile(fileSys, hfile );
-    }
-    hfile = 0;
-
-    // Close the file system
-    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
-    hdfsDisconnect(fileSys);
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
-    fileSys = 0;
+  if (!fileSys) {
+    LOG_OPER("[hdfs] No filesystem to close for file <%s>", filename.c_str());
+    return;
   }
+
+  if (!hfile) {
+    LOG_OPER("[hdfs] No hfile to close for file <%s>", filename.c_str());
+    return;
+  }
+
+  // To avoid "unexpected end of file" errors LZO compressed
+  // files must end with a null byte.
+  if (LZOCompressionLevel != 0) {
+    // Flush LZO buffer
+    bool good = false;
+    const std::string& clearBuf = LZOCompress("", true, &good);
+
+    if (good) {
+      hdfsWrite(fileSys, hfile, clearBuf.data(), clearBuf.length());
+    }
+
+    // write EOF
+    unsigned int eof = 0;
+    hdfsWrite(fileSys, hfile, &eof, sizeof(unsigned int));
+  }
+
+  if (hdfsCloseFile(fileSys, hfile) == 0) {
+    LOG_OPER("[hdfs] Closed <%s>", filename.c_str());
+  } else {
+    LOG_OPER("[hdfs] Error closing <%s>", filename.c_str());
+  }
+  hfile = 0;
+
+  hdfsDisconnect(fileSys);
+  fileSys = 0;
 }
 
 void HdfsFile::setShouldLZOCompress(int compressionLevel) {
