@@ -306,10 +306,11 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
     wrk_len = LZO1X_1_MEM_COMPRESS;
 
   int blocks = (int)(data.length() / lzo_block_size);
-  int total_data_length = blocks * lzo_block_size;
+  if (blocks && (data.length() % lzo_block_size)) {
+    blocks++;
+  }
 
-  if(blocks == 0)
-    total_data_length = data.length();
+  int total_data_length = blocks == 0 ? data.length() : blocks * lzo_block_size;
   
   /*
    *  allocate compression buffers and work-memory
