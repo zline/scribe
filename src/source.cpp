@@ -33,7 +33,7 @@ void* sourceStarter(void *this_ptr) {
 }
 
 bool Source::createSource(ptree& conf, shared_ptr<Source>& newSource) {
-  string type = conf.get<string>("type");
+  string type = conf.get<string>("type", "");
   if (0 == type.compare("tail")) {
     newSource = shared_ptr<Source>(new TailSource(conf));
     return true;
@@ -45,12 +45,17 @@ bool Source::createSource(ptree& conf, shared_ptr<Source>& newSource) {
 
 Source::Source(ptree& conf) {
   configuration = conf;
+  validConfiguration = true;
 }
 
 Source::~Source() {}
 
 void Source::configure() {
-  categoryHandled = configuration.get<string>("category");
+  categoryHandled = configuration.get<string>("category", "");
+  if (categoryHandled == "") {
+    LOG_OPER("Invalid Source configuration! No <category> specified.");
+    validConfiguration = false;
+  }
 }
 
 void Source::start() {}
@@ -66,7 +71,12 @@ TailSource::~TailSource() {}
 
 void TailSource::configure() {
   Source::configure();
-  filename = configuration.get<string>("file");
+  filename = configuration.get<string>("file", "");
+  if (filename == "") {
+    LOG_OPER("[%s] Invalid TailSource configuration! No <file> specified.",
+      categoryHandled.c_str());
+    validConfiguration = false;
+  }
 }
 
 void TailSource::start() {
@@ -80,7 +90,12 @@ void TailSource::stop() {
 }
 
 void TailSource::run() {
+
   configure();
+  if (!validConfiguration) {
+    return;
+  }
+
   LOG_OPER("[%s] Starting tail source for file <%s>",
     categoryHandled.c_str(), filename.c_str());
 

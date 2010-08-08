@@ -45,6 +45,7 @@ class Source {
   std::string categoryHandled;
   pthread_t sourceThread;
   bool active;
+  bool validConfiguration;
 };
 
 
