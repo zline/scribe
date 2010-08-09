@@ -270,27 +270,40 @@ void HdfsFile::setShouldLZOCompress(int compressionLevel) {
   }
 }
 
+/*
+ * Compress data using the LZO compression codec.
+ *
+ * Data is buffered until at least one blocks worth has been accumulated,
+ * at which point data is compressed and returned. We buffer when:
+ *
+ *   (a) Less than lzo_block_size bytes have been accumulated.
+ *       All bytes are buffered.
+ *
+ *   (b) More than N lzo_block_size bytes have been accumulated.
+ *       Bytes after the last full block are buffered.
+ *
+ * Bytes are not buffered when forcing compression; this is needed
+ * to close files.
+ */
 const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force, bool *success) {
   *success = true;
 
-  // If we have a previous buffer, prepend it to our input
-  string data = string(inputData.data());
-  if(LZObacklogBuffer.length() > 0) {
+  // Construct a new string containing all data eligible for compression.
+  // A copy is used to preserve inputData, as that is needed in the case
+  // of failure.
+  string data;
+  if (LZObacklogBuffer.length() > 0) {
     data = LZObacklogBuffer + string(inputData.data());
-
-    /* and reset the pending data to an empty string */
-    LZObacklogBuffer = string("");
+    LZObacklogBuffer.clear();
+  } else {
+    data = string(inputData.data());
   }
 
-  /*
-     If the data we've received is smaller than
-     lzo_block_size (256k by default), queue it and return the input
-
-     if 'force == true', then don't queue it, and compress it
-  */
-  if(data.length() < lzo_block_size && force == false) {
-    LZObacklogBuffer = data;
-    return inputData;
+  // Buffer a partial block, if needed.
+  if (data.length() % lzo_block_size > 0 && force == false) {
+    int blocks = (int) (data.length() / lzo_block_size);
+    LZObacklogBuffer = data.substr(blocks * lzo_block_size);
+    data.erase(blocks * lzo_block_size);
   }
 
   /* work buffers */
@@ -304,13 +317,6 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
     wrk_len = LZO1X_999_MEM_COMPRESS;
   else
     wrk_len = LZO1X_1_MEM_COMPRESS;
-
-  int blocks = (int)(data.length() / lzo_block_size);
-  if (blocks && (data.length() % lzo_block_size)) {
-    blocks++;
-  }
-
-  int total_data_length = blocks == 0 ? data.length() : blocks * lzo_block_size;
   
   /*
    *  allocate compression buffers and work-memory
@@ -327,25 +333,19 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
    *  Compress each block and write it
    */ 
   int r = 0;
-  for (int i = 0; i < blocks || blocks == 0; i++) {
-      int offset = i * lzo_block_size;
-      int data_len = blocks == 0 ? total_data_length : lzo_block_size;
-
-      /* Let last block be a little bigger before we flush */
-      if(i == blocks) {
-        data_len += data.length() - total_data_length;
-      }
-      const string block_data = data.substr(offset, data_len);
+  for (int i = 0; i < data.length(); i += lzo_block_size) {
+      const string block_data = data.substr(i, lzo_block_size);
 
       /* compress block */
-      if (LZOCompressionLevel == 9)
+      if (LZOCompressionLevel == 9) {
         r = lzo1x_999_compress((const unsigned char *)block_data.data(), 
                                block_data.length(),
                                out, &out_len, wrkmem);
-      else
+      } else {
         r = lzo1x_1_compress((const unsigned char *)block_data.data(), 
                              block_data.length(), 
                              out, &out_len, wrkmem);
+      }
 
       /* this should never occur */
       if (r != LZO_E_OK || 
@@ -384,8 +384,6 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
         LZOStringAppendInt32(compressedData, block_data.length());
         compressedData.append(block_data);
       }
-      if(blocks == 0)
-        break;
   }
 
   free(out);        out = NULL;
