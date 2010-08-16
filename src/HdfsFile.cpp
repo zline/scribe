@@ -333,7 +333,7 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
    *  Compress each block and write it
    */ 
   int r = 0;
-  for (int i = 0; i < data.length(); i += lzo_block_size) {
+  for (unsigned int i = 0; i < data.length(); i += lzo_block_size) {
       const string block_data = data.substr(i, lzo_block_size);
 
       /* compress block */
@@ -393,43 +393,37 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
 }
 
 bool HdfsFile::write(const std::string& data) {
-  if (!isOpen()) {
-    bool success = openWrite();
-
-    if (!success) {
+  if (isOpen() == false) {
+    if (openWrite() == false) {
       return false;
     }
   }
 
-  tSize bytesWritten = 0;
-  /*
-    'success' indicates whether a buffer was compressed and returned.
-    a compressed buffer will only be returned once the lzo_block_size 
-    has been reached.  until then the data is buffered/queued for compression.
-  */
-  bool success = false;
-
-  if(LZOCompressionLevel != 0) {
+  if (LZOCompressionLevel != 0) {
+    bool success = false;
     const string& compressedData = LZOCompress(data, false, &success);
-    if(compressedData != data && success == true) {
-      bytesWritten = hdfsWrite(fileSys, hfile, compressedData.data(),
-                               (tSize) compressedData.length());
-
-      return (bytesWritten == (tSize)compressedData.length());
-    } else if(success == false) {
-      bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
-                               (tSize) data.length());
-      
-      return (bytesWritten == (tSize) data.length()) ? true : false;
+    if (success == true) {
+      if (compressedData.length() > 0) {
+        tSize bytesWritten = hdfsWrite(fileSys, hfile, compressedData.data(),
+                                       (tSize) compressedData.length());
+        return (bytesWritten == (tSize)compressedData.length());
+      } else {
+        // Data was successfully buffered.
+        return true;
+      }
+    } else {
+      // Compression failed.
+      return false;
     }
   } else {
-    /* normal unbuffered/compressed write */
-    bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
-                             (tSize) data.length());
+    // Uncompressed, unbuffered write.
+    tSize bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
+                                   (tSize) data.length());
     return (bytesWritten == (tSize) data.length()) ? true : false;
   }
 
-  return success;
+  // This should never happen.
+  return false;
 }
 
 void HdfsFile::flush() {
