@@ -123,7 +123,6 @@ Store::Store(StoreQueue* storeq,
     storeType(type),
     storeQueue(storeq) {
   pthread_mutex_init(&statusMutex, NULL);
-  LOG_OPER("[%s] Created %s store", categoryHandled.c_str(), storeType.c_str());
 }
 
 Store::~Store() {
@@ -379,6 +378,9 @@ bool FileStoreBase::open() {
 
 // Decides whether conditions are sufficient for us to roll files
 void FileStoreBase::periodicCheck() {
+  if (isOpen() == false) {
+    return;
+  }
 
   time_t rawtime = time(NULL);
   struct tm timeinfo;
@@ -422,7 +424,7 @@ void FileStoreBase::rotateFile(time_t currentTime) {
            maxSize == ULONG_MAX ? 0 : maxSize);
 
   printStats();
-  openInternal(true, &timeinfo);
+  close();
 }
 
 string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time) {

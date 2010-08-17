@@ -194,7 +194,6 @@ std::string StoreQueue::getBaseType() {
 }
 
 void StoreQueue::threadMember() {
-  LOG_OPER("store thread starting");
   if (isModel) {
     LOG_OPER("ERROR: store thread starting on model store, exiting");
     return;
@@ -227,7 +226,6 @@ void StoreQueue::threadMember() {
       switch (cmd.command) {
       case CMD_CONFIGURE:
         configureInline(cmd.configuration);
-        openInline();
         open = true;
         break;
       case CMD_OPEN:

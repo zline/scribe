@@ -50,9 +50,11 @@ HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer
 
 HdfsFile::~HdfsFile() {
   if (fileSys) {
-    LOG_OPER("[hdfs] disconnecting fileSys for %s", filename.c_str());
-    hdfsDisconnect(fileSys);
-    LOG_OPER("[hdfs] disconnected fileSys for %s", filename.c_str());
+    if (hdfsDisconnect(fileSys) == 0) {
+      LOG_OPER("[hdfs] Disconnected fileSys for <%s>", filename.c_str());
+    } else {
+      LOG_OPER("[hdfs] Error disconnecting from fileSys <%s>", filename.c_str());
+    }
   }
   fileSys = 0;
   hfile = 0;
