@@ -833,20 +833,16 @@ shared_ptr<Store> FileStore::copy(const std::string &category) {
   return copied;
 }
 
+/*
+ * Entry point for new messages into a FileStore.
+ *
+ * Open a new file if needed, and write messages into the file.
+ */
 bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  if (!isOpen()) {
-    openInternal(true, NULL);
+  if (!isOpen() && !openInternal(true, NULL)) {
+    return false;
   }
 
-  if (!isOpen()) {
-    if (!open()) {
-      LOG_OPER("[%s] File failed to open FileStore::handleMessages()",
-               categoryHandled.c_str());
-      return false;
-    }
-  }
-
-  // write messages to current file
   return writeMessages(messages);
 }
 
