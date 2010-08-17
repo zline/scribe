@@ -376,9 +376,17 @@ bool FileStoreBase::open() {
   return openInternal(rotateOnReopen, NULL);
 }
 
-// Decides whether conditions are sufficient for us to roll files
+/*
+ * Handle periodic file maintenance tasks.
+ *
+ * Files may be configured to close when exceeding a size, or at some
+ * time of day. Unlike traditional log rotation, files are not reopened
+ * immediately - they are lazily opened only when messages have actually
+ * been received. This prevents empty files from being created, which are
+ * common in dynamic environments.
+ */
 void FileStoreBase::periodicCheck() {
-  if (isOpen() == false) {
+  if (!isOpen()) {
     return;
   }
 
@@ -408,7 +416,7 @@ void FileStoreBase::periodicCheck() {
   }
 
   if (rotate) {
-    rotateFile(rawtime);
+    close();
   }
 }
 
@@ -424,7 +432,7 @@ void FileStoreBase::rotateFile(time_t currentTime) {
            maxSize == ULONG_MAX ? 0 : maxSize);
 
   printStats();
-  close();
+  openInternal(true, &timeinfo);
 }
 
 string FileStoreBase::makeFullFilename(int suffix, struct tm* creation_time) {

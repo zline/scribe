@@ -137,10 +137,8 @@ string StdFile::getFrame(unsigned data_length) {
 }
 
 bool StdFile::write(const std::string& data) {
-  if (isOpen() == false) {
-    if (openWrite() == false) {
-      return false;
-    }
+  if (!isOpen() && !openWrite()) {
+    return false;
   }
 
   file << data;
