@@ -489,7 +489,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
     }
 
     if (store_list == NULL) {
-      LOG_OPER("log entry has invalid category <%s>", category.c_str());
+      LOG_DEBUG("log entry has invalid category <%s>", category.c_str());
       incCounter(category, "received bad");
 
       continue;
