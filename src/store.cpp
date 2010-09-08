@@ -415,7 +415,7 @@ void FileStoreBase::periodicCheck() {
     }
   }
 
-  if (rotate) {
+  if (rotate && isOpen()) {
     close();
   }
 }
