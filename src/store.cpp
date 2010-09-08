@@ -1595,16 +1595,10 @@ void BufferStore::periodicCheck() {
 
   if (state == DISCONNECTED) {
     if (now - lastOpenAttempt > retryInterval) {
-      if (primaryStore->open()) {
-        // Success.  Check if we need to send buffers from secondary to primary
-        if (replayBuffer) {
-          changeState(SENDING_BUFFER);
-        } else {
-          changeState(STREAMING);
-        }
+      if (replayBuffer) {
+        changeState(SENDING_BUFFER);
       } else {
-        // this resets the retry timer
-        changeState(DISCONNECTED);
+        changeState(STREAMING);
       }
     }
   }
