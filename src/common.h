@@ -43,8 +43,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <boost/shared_ptr.hpp>
+#include "boost/filesystem.hpp"
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/convenience.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 
 #ifdef USE_ZOOKEEPER
 #include <time.h>

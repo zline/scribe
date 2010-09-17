@@ -24,6 +24,7 @@
 int debug_level = 0;
 #include "common.h"
 #include "scribe_server.h"
+#include "SourceConf.h"
 
 using namespace apache::thrift::concurrency;
 
@@ -33,6 +34,7 @@ using namespace facebook;
 using namespace scribe::thrift;
 using namespace std;
 
+using boost::property_tree::ptree;
 using boost::shared_ptr;
 
 shared_ptr<scribeHandler> g_Handler;
@@ -537,6 +539,78 @@ bool scribeHandler::throttleDeny(int num_messages) {
   }
 }
 
+/*
+ * Start all scribe sources.
+ *
+ * Sources are defined in a directory of XML files, with one or more source
+ * per file.
+ *
+ * Each source must define a `category' and `type', as well as
+ * type-specific parameters. For example, the following could be used to ingest
+ * web server logs as they are produced.
+ *
+ * <sources>
+ *   <source>
+ *     <category>httpd</category>
+ *     <type>tail</type>
+ *     <file>/var/log/httpd.log</file>
+ *   </source>
+ * </sources>
+ *
+ * In this example we see just one `source', however, there could be more in the
+ * same `sources' config.
+ *
+ * By default, configuration files are read from `/etc/scribe.d', unless moved
+ * elsewhere via the `config_dir' global option. This method allows one to add
+ * sources when installing a log-producing application.
+ */
+void scribeHandler::startSources() {
+
+  string configDir;
+  if (!config.getString("config_dir", configDir)) {
+    configDir = "/etc/scribe.d";
+  }
+
+  boost::filesystem::path configPath(configDir);
+
+  if (!boost::filesystem::exists(configPath) ||
+      !boost::filesystem::is_directory(configPath)) {
+    return;
+  }
+
+  boost::filesystem::directory_iterator end_iter;
+  for (boost::filesystem::directory_iterator dir_iter(configPath);
+       dir_iter != end_iter; ++dir_iter) {
+
+    if (!boost::filesystem::is_regular_file(dir_iter->status())) {
+      continue;
+    }
+
+    shared_ptr<SourceConf> sourceConf =
+      shared_ptr<SourceConf>(new SourceConf());
+    sourceConf->load(dir_iter->path().string());
+
+    vector<ptree> allSources;
+    sourceConf->getAllSources(allSources);
+    for (vector<ptree>::iterator allSourcesIter = allSources.begin();
+         allSourcesIter != allSources.end(); ++allSourcesIter) {
+      shared_ptr<Source> newSource;
+      if (Source::createSource(*allSourcesIter, newSource)) {
+        newSource->start();
+        runningSources.push_back(newSource);
+      }
+    }
+  }
+}
+
+void scribeHandler::stopSources() {
+  for (source_list_t::iterator source_iter = runningSources.begin();
+       source_iter != runningSources.end(); ++source_iter) {
+    (*source_iter)->stop();
+  }
+  runningSources.clear();
+}
+
 void scribeHandler::stopStores() {
   setStatus(STOPPING);
   shared_ptr<store_list_t> store_list;
@@ -554,6 +628,7 @@ void scribeHandler::stopStores() {
 
 void scribeHandler::shutdown() {
   RWGuard monitor(*scribeHandlerLock, true);
+  stopSources();
   stopStores();
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
@@ -567,6 +642,7 @@ void scribeHandler::reinitialize() {
   // This is done without shutting down the Thrift server, so this will not
   // reconfigure any server settings such as port number.
   LOG_OPER("reinitializing");
+  stopSources();
   stopStores();
   initialize();
 }
@@ -632,6 +708,8 @@ void scribeHandler::initialize() {
     if (port <= 0) {
       throw runtime_error("No port number configured");
     }
+
+    startSources();
 
 #ifdef USE_ZOOKEEPER
     setStatusDetails("initialize ZKClient");

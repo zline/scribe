@@ -26,6 +26,7 @@
 
 #include "store.h"
 #include "store_queue.h"
+#include "source.h"
 #include "common.h"
 
 #ifdef USE_ZOOKEEPER
@@ -34,6 +35,7 @@
 
 typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
+typedef std::vector<boost::shared_ptr<Source> > source_list_t;
 
 std::string resultCodeToString(scribe::thrift::ResultCode rc);
 
@@ -100,6 +102,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
 
   // the default stores
   store_list_t defaultStores;
+  source_list_t runningSources;
 
   std::string configFilename;
   facebook::fb303::fb_status status;
@@ -137,6 +140,8 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
                            const boost::shared_ptr<StoreQueue> &model,
                            bool category_list=false);
   bool configureStore(pStoreConf store_conf, int* num_stores);
+  void startSources();
+  void stopSources();
   void stopStores();
   bool throttleRequest(const std::vector<scribe::thrift::LogEntry>&  messages);
   boost::shared_ptr<store_list_t>
