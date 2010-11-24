@@ -110,14 +110,6 @@ bool HdfsFile::LZOStringAppendInt16(std::string&str, unsigned v) {
 
 #endif
 
-/*
- * Open an HDFS file for writing.
- *
- * As appends are still experimental most clusters do not support writing
- * to existing files. For this reason, we must open a unique file name.
- * Its common to have many scribes writing to the same directory, rotating
- * files at the same time, so retry a limited number of times before failing.
- */
 bool HdfsFile::openWrite() {
   if (hfile) {
     LOG_OPER("[hdfs] already opened for write %s", filename.c_str());
@@ -129,31 +121,12 @@ bool HdfsFile::openWrite() {
     return false;
   }
 
-  string base_filename = (LZOCompressionLevel > 0) ?
-    filename.substr(0,filename.size()-3) : filename;
-
-  int attempts = 0;
   int flags = O_WRONLY;
 
-  while ((!hfile) && (attempts++ < MAX_ATTEMPTS)) {
-    ostringstream tryFile;
-    tryFile << base_filename << attempts;
-    if (LZOCompressionLevel > 0) {
-      tryFile << ".lzo";
-    }
-    filename = tryFile.str();
-
-    LOG_DEBUG("[hdfs] Checking if candidate filename exists: %s",
-              filename.c_str());
-    // hdfsExists returns 0 if the file exists.
-    if (hdfsExists(fileSys, filename.c_str())) {
-      hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
-    }
-  }
-
+  LOG_DEBUG("[hdfs] Opening <%s>", filename.c_str());
+  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
   if (!hfile) {
-    LOG_OPER("[hdfs] Failed opening file <%s> after <%d> attempts.",
-      filename.c_str(), attempts);
+    LOG_OPER("[hdfs] Failed opening file <%s>", filename.c_str());
     return false;
   }
 
@@ -189,7 +162,8 @@ bool HdfsFile::openWrite() {
       LZOStringAppendInt32(lzo_header, 0); /* mtime */
       LZOStringAppendInt32(lzo_header, 0); /* gmtdiff */
 
-      const char *baseFile = basename(base_filename.c_str());
+      // LZO headers include the uncompressed filename.
+      const char *baseFile = basename(filename.substr(0, filename.size()-4).c_str());
 
       LZOStringAppendChar(lzo_header, strlen(baseFile));
 
