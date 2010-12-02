@@ -157,20 +157,11 @@ bool HdfsFile::openWrite() {
       LZOStringAppendChar(lzo_header, LZOCompressionLevel);
       LZOStringAppendInt32(lzo_header, lzo_flags);
 
-      /* write mode, mtime, gmtdiff, length of name, name, adler32 init (1)*/
-      LZOStringAppendInt32(lzo_header, 0664); /* mode */
-      LZOStringAppendInt32(lzo_header, 0); /* mtime */
-      LZOStringAppendInt32(lzo_header, 0); /* gmtdiff */
-
-      // LZO headers include the uncompressed filename.
-      const char *baseFile = basename(filename.substr(0, filename.size()-4).c_str());
-
-      LZOStringAppendChar(lzo_header, strlen(baseFile));
-
-      lzo_header.append(baseFile);
-      lzo_checksum = lzo_adler32(lzo_checksum,
-          (unsigned char*)baseFile, strlen(baseFile));
-      LZOStringAppendInt32(lzo_header, lzo_checksum);
+      LZOStringAppendInt32(lzo_header, 0664);  // mode
+      LZOStringAppendInt32(lzo_header, 0);     // ignore mtime
+      LZOStringAppendInt32(lzo_header, 0);     // ignore gmtdiff
+      LZOStringAppendChar(lzo_header, 0);      // ignore filename
+      LZOStringAppendInt32(lzo_header, lzo_checksum);  // header checksum
 
       tSize bytesWritten = hdfsWrite(fileSys, hfile,
           lzo_header.data(),
