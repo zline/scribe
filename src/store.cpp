@@ -480,10 +480,15 @@ string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
 	       << setw(2) << setfill('0') << creation_time->tm_mon + 1 << '-'
 	       << setw(2) << setfill('0')  << creation_time->tm_mday << "-"
 	       << setw(2) << setfill('0')  << creation_time->tm_hour;
-      char hostname[1024];
-      hostname[1023] = '\0';
-      gethostname(hostname, 1023);
-      filename << '_' << boost::lexical_cast<string>(hostname)
+      char fqdn[1024];
+      fqdn[1023] = '\0';
+      gethostname(fqdn, 1023);
+      string hostname (fqdn);
+      size_t pos = hostname.find(".");
+      if (pos != string::npos) {
+        hostname.erase(pos);
+      }
+      filename << '_' << hostname
           << '_' << boost::lexical_cast<string>(g_Handler->port);
     } else {
       filename << baseFileName;
