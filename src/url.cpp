@@ -14,7 +14,7 @@ Url::Url(const std::string & spec) {
     int result;
     parseStatus = false;
 
-    result = regcomp(&regex, URL_REGEX, 0);
+    result = regcomp(&regex, URL_REGEX.c_str(), 0);
     if (result != 0) {
         LOG_OPER("ERROR: Failed to compile regular expression");
         return;
