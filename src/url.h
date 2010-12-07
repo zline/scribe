@@ -22,6 +22,7 @@ protected:
 
 private:
     bool parseStatus;
+    static std::string extractMatch(const std::string & input, regmatch_t * match);
 };
 
 #endif
