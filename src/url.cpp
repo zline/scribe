@@ -33,21 +33,21 @@ Url::Url(const std::string & spec) {
 }
 
 std::string extractMatch(const std::string & input, regmatch_t * match) {
-    return input.substr(match.rm_so, match.rm_eo - match.rm_so);
+    return input.substr(match->rm_so, match->rm_eo - match->rm_so);
 }
 
-const std::string & Url::getProtocol() {
+const std::string & Url::getProtocol() const {
     return protocol;
 }
 
-const std::string & Url::getHost() {
+const std::string & Url::getHost() const {
     return host;
 }
 
-int Url::getPort() {
+int Url::getPort() const {
     return port;
 }
 
-const std::string & Url::getFile() {
+const std::string & Url::getFile() const {
     return file;
 }
