@@ -24,14 +24,14 @@ Url::Url(const std::string & spec) {
         LOG_OPER("ERROR: URL string '%s' failed to parse", spec.c_str());
         return;
     }
-    protocol = extractMatch(spec, &groups[0]);
-    host = extractMatch(spec, &groups[1]);
-    port = atoi(extractMatch(spec, &groups[2]).c_str());
-    file = extractMatch(spec, &groups[3]);
+    protocol = Url::extractMatch(spec, &groups[0]);
+    host = Url::extractMatch(spec, &groups[1]);
+    port = atoi(Url::extractMatch(spec, &groups[2]).c_str());
+    file = Url::extractMatch(spec, &groups[3]);
     parseStatus = true;
 }
 
-std::string extractMatch(const std::string & input, regmatch_t * match) {
+std::string Url::extractMatch(const std::string & input, regmatch_t * match) {
     return input.substr(match->rm_so, match->rm_eo - match->rm_so);
 }
 
