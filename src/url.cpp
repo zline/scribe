@@ -1,4 +1,8 @@
 #include "url.h"
+#include <regex.h>
+
+const std::string URL_REGEX = "([a-zA-Z]+)://([a-zA-Z.0-9]+):(\\d+)(/.*)";
+const int URL_REGEX_GROUPS = 4;
 
 Url::Url(const std::string & urlProtocol, const std::string & urlHost, int urlPort,
          const std::string & urlFile) :
@@ -6,17 +10,30 @@ Url::Url(const std::string & urlProtocol, const std::string & urlHost, int urlPo
 }
 
 Url::Url(const std::string & spec) {
-    static const boost::regex urlRegex("([a-zA-Z]+)://([a-zA-Z.0-9]+):(\\d+)(/.*)");
-    boost::cmatch match;
-    if (boost::regex_match(spec, match, urlRegex)) {
-        protocol = match[0];
-        host = match[1];
-        port = atoi(match[2].c_str());
-        file = match[3];
-        parseStatus = true;
-    } else {
-        parseStatus = false;
+    regex_t regex;
+    int result;
+    parseStatus = false;
+
+    result = regcomp(&regex, URL_REGEX, 0);
+    if (result != 0) {
+        LOG_OPER("ERROR: Failed to compile regular expression");
+        return;
     }
+    regmatch_t groups[URL_REGEX_GROUPS];
+    result = regexec(&regex, spec.c_str(), URL_REGEX_GROUPS, groups, 0);
+    if (result != 0) {
+        LOG_OPER("ERROR: URL string '%s' failed to parse", spec.c_str());
+        return;
+    }
+    protocol = extractMatch(spec, groups[0]);
+    host = extractMatch(spec, groups[1]);
+    port = atoi(extractMatch(spec, groups[2]).c_str());
+    file = extractMatch(spec, groups[3]);
+    parseStatus = true;
+}
+
+std::string extractMatch(const std::string & input, regmatch_t * match) {
+    return input.substr(match.rm_so, match.rm_eo - match.rm_so);
 }
 
 const std::string & Url::getProtocol() {
@@ -27,7 +44,7 @@ const std::string & Url::getHost() {
     return host;
 }
 
-int getPort() {
+int Url::getPort() {
     return port;
 }
 
