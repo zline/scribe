@@ -2,6 +2,7 @@
 #define SCRIBE_URL_H
 
 #include "common.h"
+#include <regex.h>
 
 class Url {
 public:

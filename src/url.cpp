@@ -1,5 +1,4 @@
 #include "url.h"
-#include <regex.h>
 
 const std::string URL_REGEX = "([a-zA-Z]+)://([a-zA-Z.0-9]+):(\\d+)(/.*)";
 const int URL_REGEX_GROUPS = 4;
