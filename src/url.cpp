@@ -25,10 +25,10 @@ Url::Url(const std::string & spec) {
         LOG_OPER("ERROR: URL string '%s' failed to parse", spec.c_str());
         return;
     }
-    protocol = extractMatch(spec, groups[0]);
-    host = extractMatch(spec, groups[1]);
-    port = atoi(extractMatch(spec, groups[2]).c_str());
-    file = extractMatch(spec, groups[3]);
+    protocol = extractMatch(spec, &groups[0]);
+    host = extractMatch(spec, &groups[1]);
+    port = atoi(extractMatch(spec, &groups[2]).c_str());
+    file = extractMatch(spec, &groups[3]);
     parseStatus = true;
 }
 
