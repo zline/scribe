@@ -1,7 +1,9 @@
 #include "url.h"
+#include <stdio.h>
 
-const std::string URL_REGEX = "([a-zA-Z]+)://([a-zA-Z.0-9]+):(\\d+)(/.*)";
-const int URL_REGEX_GROUPS = 4;
+const std::string URL_REGEX = "\\([a-zA-Z][a-zA-Z]*\\)://\\([a-zA-Z.0-9]*\\):\\([0-9][0-9]*\\)\\(/.*\\)";
+const int URL_REGEX_GROUPS = 5;
+const int MAX_ERROR_LEN = 128;
 
 Url::Url(const std::string & urlProtocol, const std::string & urlHost, int urlPort,
          const std::string & urlFile) :
@@ -15,20 +17,23 @@ Url::Url(const std::string & spec) {
 
     result = regcomp(&regex, URL_REGEX.c_str(), 0);
     if (result != 0) {
-        LOG_OPER("ERROR: Failed to compile regular expression");
+        fprintf(stderr, "ERROR: Failed to compile regular expression\n");
         return;
     }
     regmatch_t groups[URL_REGEX_GROUPS];
     result = regexec(&regex, spec.c_str(), URL_REGEX_GROUPS, groups, 0);
     if (result != 0) {
-        LOG_OPER("ERROR: URL string '%s' failed to parse", spec.c_str());
-        return;
+        char err[MAX_ERROR_LEN];
+        regerror(result, &regex, err, MAX_ERROR_LEN);
+        fprintf(stderr, "ERROR: URL string '%s' failed to parse: %s\n", spec.c_str(), err);
+    } else {
+        parseStatus = true;
+        protocol = Url::extractMatch(spec, &groups[1]);
+        host = Url::extractMatch(spec, &groups[2]);
+        port = atoi(Url::extractMatch(spec, &groups[3]).c_str());
+        file = Url::extractMatch(spec, &groups[4]);
     }
-    protocol = Url::extractMatch(spec, &groups[0]);
-    host = Url::extractMatch(spec, &groups[1]);
-    port = atoi(Url::extractMatch(spec, &groups[2]).c_str());
-    file = Url::extractMatch(spec, &groups[3]);
-    parseStatus = true;
+    regfree(&regex);
 }
 
 std::string Url::extractMatch(const std::string & input, regmatch_t * match) {
@@ -49,4 +54,8 @@ int Url::getPort() const {
 
 const std::string & Url::getFile() const {
     return file;
+}
+
+bool Url::parseSuccessful() const {
+    return parseStatus;
 }

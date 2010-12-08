@@ -1,7 +1,7 @@
 #ifndef SCRIBE_URL_H
 #define SCRIBE_URL_H
 
-#include "common.h"
+#include <string>
 #include <regex.h>
 
 class Url {
@@ -9,7 +9,7 @@ public:
     Url(const std::string & protocol, const std::string & host, int port, const std::string & file);
     Url(const std::string & spec);
 
-    bool parseSuccessfull();
+    bool parseSuccessful() const;
     const std::string & getProtocol() const;
     const std::string & getHost() const;
     int getPort() const;

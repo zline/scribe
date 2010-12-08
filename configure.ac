@@ -14,6 +14,7 @@ AM_INIT_AUTOMAKE([foreign -Wall])
 # To install locally
 FB_INITIALIZE([localinstall])
 AC_PREFIX_DEFAULT([/usr/local])
+AM_PATH_CPPUNIT(1.9.6)
 
 ############################################################################
 # User Configurable. Change With CAUTION!

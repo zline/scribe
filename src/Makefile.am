@@ -118,6 +118,12 @@ if SHARED
 scribed_DEPENDENCIES = libscribe.so
 endif
 
+TESTS = url_test
+check_PROGRAMS = $(TESTS)
+url_test_SOURCES = url.h url.cpp url_test.cpp
+url_test_CXXFLAGS = $(CPPUNIT_CFLAGS)
+url_test_LDFLAGS = $(CPPUNIT_LIBS)
+
 # Section 4 ##############################################################################
 # Set up Thrift specific activity here.
 # We assume that a <name>+types.cpp will always be built from <name>.thrift.
