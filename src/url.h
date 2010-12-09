@@ -5,7 +5,7 @@
 #include <regex.h>
 
 /**
- * Basic URL parser. 
+ * Basic URL parser.
  * URLs must have the format PROTOCOL://HOST:PORT/PATH
  *
  * @author(jcorwin)

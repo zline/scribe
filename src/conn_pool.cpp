@@ -213,7 +213,7 @@ scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_,
   zkRegistrationZnode = hostname;
 #endif
 }
- 
+
 scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_,
     int msgThresholdBeforeReconnect_, int allowableDeltaBeforeReconnect_)
   : refCount(1),

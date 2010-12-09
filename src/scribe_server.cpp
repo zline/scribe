@@ -724,7 +724,7 @@ void scribeHandler::initialize() {
         LOG_OPER("Disconnection from existing zk connection");
         zkClient->disconnect();
     }
-    
+
     std::string zkServer;
     std::string zkRegistrationPrefix;
     std::string zkAggSelectorKey;

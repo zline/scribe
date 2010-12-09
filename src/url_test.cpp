@@ -23,7 +23,7 @@ public:
         CPPUNIT_ASSERT_EQUAL(HTTP, url.getProtocol());
         CPPUNIT_ASSERT_EQUAL(LOCALHOST, url.getHost());
         CPPUNIT_ASSERT_EQUAL(PORT, url.getPort());
-        CPPUNIT_ASSERT_EQUAL(INDEX, url.getFile());            
+        CPPUNIT_ASSERT_EQUAL(INDEX, url.getFile());
     }
 
     void testParse() {
