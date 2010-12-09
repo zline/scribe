@@ -731,18 +731,23 @@ void scribeHandler::initialize() {
 
     // comma separated host:port pairs, each corresponding to a zk
     // server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
-    config.getString("zk_server", zkServer);
+    if (config.getString("zk_server", zkServer)) {
+        LOG_OPER("Using zk_server %s", zkServer.c_str());
+    } else {
+        LOG_OPER("No zk_server specified");
+    }
 
     // znode to register this task at in /path/to/znode format.
-    config.getString("zk_registration_prefix", zkRegistrationPrefix);
-    config.getString("zk_agg_selector", zkAggSelectorKey);
-
-    LOG_OPER("Using zk_server %s", zkServer.c_str());
-    LOG_OPER("Using zk_registration_prefix %s", zkRegistrationPrefix.c_str());
-
-    if (!zkAggSelectorKey.empty()) {
+    if (config.getString("zk_registration_prefix", zkRegistrationPrefix)) {
+        LOG_OPER("Using zk_registration_prefix %s", zkRegistrationPrefix.c_str());
+    } else {
+        LOG_OPER("No zk_registration_prefix specified");
+    }
+    if (config.getString("zk_agg_selector", zkAggSelectorKey)) {
         LOG_OPER("Using zk_agg_selector %s", zkAggSelectorKey.c_str());
         ZKClient::setAggSelectorStrategy(zkAggSelectorKey);
+    } else {
+        LOG_OPER("No zk_agg_selector specified");
     }
 
     if (!zkServer.empty() &&
