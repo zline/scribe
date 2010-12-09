@@ -22,7 +22,6 @@
 
 #ifdef USE_ZOOKEEPER
 #include "common.h"
-#include "scribe_server.h"
 #include <semaphore.h>
 
 class ZKClient {
