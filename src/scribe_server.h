@@ -117,7 +117,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   bool newThreadPerCategory;
 
 #ifdef USE_ZOOKEEPER
-  boost::auto_ptr<ZKClient> zkClient;
+  std::auto_ptr<ZKClient> zkClient;
 #endif
 
   /* mutex to syncronize access to scribeHandler.
