@@ -275,6 +275,7 @@ bool scribeConn::open() {
     }
 #ifdef USE_ZOOKEEPER
     if (0 == zkRegistrationZnode.find("zk://")) {
+        LOG_OPER("Found zookeeper URL %s", zkRegistrationZnode.c_str());
         Url regUrl(zkRegistrationZnode);
         if (!regUrl.parseSuccessful()) {
             LOG_OPER("Failed to parse zookeeper registration url %s", zkRegistrationZnode.c_str());

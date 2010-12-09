@@ -97,7 +97,8 @@ bool ZKClient::connect(const std::string & server,
   sem_init(&connectLatch, 0, 0);
   zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, this, 0);
   timespec ts;
-  ts.tv_sec = ZOOKEEPER_CONNECT_TIMEOUT_SECONDS;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  ts.tv_sec += ZOOKEEPER_CONNECT_TIMEOUT_SECONDS;
   ts.tv_nsec = 0;
   int result = sem_timedwait(&connectLatch, &ts);
   return result == 0;

@@ -715,13 +715,14 @@ void scribeHandler::initialize() {
 #ifdef USE_ZOOKEEPER
     setStatusDetails("initialize ZKClient");
     if (zkClient.get() == NULL) {
-      LOG_DEBUG("Creating new ZKClient.");
+      LOG_OPER("Creating new ZKClient.");
       zkClient = auto_ptr<ZKClient> (new ZKClient());
     }
 
     // Disconnect if already connected to clear previous state.
     if (zkClient->getConnectionState() == ZOO_CONNECTED_STATE) {
-      zkClient->disconnect();
+        LOG_OPER("Disconnection from existing zk connection");
+        zkClient->disconnect();
     }
     
     std::string zkServer;
@@ -735,7 +736,12 @@ void scribeHandler::initialize() {
     // znode to register this task at in /path/to/znode format.
     config.getString("zk_registration_prefix", zkRegistrationPrefix);
     config.getString("zk_agg_selector", zkAggSelectorKey);
+
+    LOG_OPER("Using zk_server %s", zkServer);
+    LOG_OPER("Using zk_registration_prefix %s", zkRegistrationPrefix);
+
     if (!zkAggSelectorKey.empty()) {
+        LOG_OPER("Using zk_agg_selector %s", zkAggSelectorKey);
         ZKClient::setAggSelectorStrategy(zkAggSelectorKey);
     }
 
