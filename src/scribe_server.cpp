@@ -714,7 +714,7 @@ void scribeHandler::initialize() {
 
 #ifdef USE_ZOOKEEPER
     setStatusDetails("initialize ZKClient");
-    if (!zkClient) {
+    if (zkClient.get() == NULL) {
       LOG_DEBUG("Creating new ZKClient.");
       zkClient = auto_ptr<ZKClient> (new ZKClient());
     }

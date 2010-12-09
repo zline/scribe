@@ -25,16 +25,15 @@ using boost::lexical_cast;
 using boost::shared_ptr;
 
 static const int ZOOKEEPER_CONNECT_TIMEOUT_SECONDS = 10;
-static std::string ZKClient::zkAggSelectorKey;
-//shared_ptr<ZKClient> g_ZKClient;
+std::string ZKClient::zkAggSelectorKey;
 
 /*
  * Global Zookeeper watcher handles all callbacks.
  */
 void ZKClient::watcher(zhandle_t *zzh, int type, int state,
     const char *path, void *watcherCtx) {
-  ZKClient zkClient = static_cast<ZKClient>(watcherCtx);
-  this.state = state;
+  ZKClient * zkClient = static_cast<ZKClient>(watcherCtx);
+  zkClient->state = state;
   if (state == ZOO_CONNECTED_STATE) {
       sem_post(&zkClient.connectLatch);
   }
@@ -86,9 +85,9 @@ bool ZKClient::connect(const std::string & server,
         int handlerPort) {
   LOG_DEBUG("Connecting to zookeeper.");
   state = ZOO_CONNECTING_STATE;
-  this.zkServer = server;
-  this.zkRegistrationPrefix = registrationPrefix;
-  this.scribeHandlerPort = handlerPort;
+  zkServer = server;
+  zkRegistrationPrefix = registrationPrefix;
+  scribeHandlerPort = handlerPort;
 
   // Asynchronously connect to zookeeper, then wait for the connection to be established.
   sem_init(&sem, 0, 0);
@@ -178,13 +177,9 @@ bool ZKClient::getRemoteScribe(const std::string& parentZnode,
     string& remoteHost,
     unsigned long& remotePort) {
   bool ret = false;
-  bool should_disconnect = false;
-  if (zkServer.empty()) {
-    LOG_OPER("No zookeeper server! Unable to discover remote scribes.");
+  if (NULL == zh) {
+    LOG_OPER("Not connected to a zookeeper server! Unable to discover remote scribes.");
     return false;
-  } else if (NULL == zh) {
-    connect();
-    should_disconnect = true;
   } else if (!zoo_state(zh)) {
     LOG_OPER("No zookeeper connection state! Unable to discover remote scribes.");
     return false;
@@ -198,9 +193,5 @@ bool ZKClient::getRemoteScribe(const std::string& parentZnode,
 
   AggSelector *aggSelector = AggSelectorFactory::createAggSelector(zkAggSelectorKey);
   ret = aggSelector->selectScribeAggregator(children, remoteHost, remotePort);
-
-  if (should_disconnect) {
-    disconnect();
-  }
   return ret;
 }

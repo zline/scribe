@@ -30,6 +30,7 @@ using std::string;
 using std::ostringstream;
 using std::map;
 using boost::shared_ptr;
+using boost::lexical_cast;
 using namespace std;
 using namespace apache::thrift;
 using namespace apache::thrift::protocol;
@@ -278,12 +279,12 @@ bool scribeConn::open() {
         if (!regUrl.parseSuccessful()) {
             LOG_OPER("Failed to parse zookeeper registration url %s", zkRegistrationZnode.c_str());
         } else {
-            ZooKeeperClient zkClient;
-            std::string zkHost = url.getHost() + ":" + lexical_cast<string>(url.getPort());
+            ZKClient zkClient;
+            std::string zkHost = regUrl.getHost() + ":" + lexical_cast<string>(regUrl.getPort());
             if (!zkClient.connect(zkHost, "", g_Handler->port)) {
                 LOG_OPER("Failed to open connection to zookeeper server %s", zkHost.c_str());
             } else {
-                if (zkClient.getRemoveScribe(regUrl.getFile(), remoteHost, remotePort)) {
+                if (zkClient.getRemoteScribe(regUrl.getFile(), remoteHost, remotePort)) {
                     LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
                 } else {
                     LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
