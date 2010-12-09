@@ -737,11 +737,11 @@ void scribeHandler::initialize() {
     config.getString("zk_registration_prefix", zkRegistrationPrefix);
     config.getString("zk_agg_selector", zkAggSelectorKey);
 
-    LOG_OPER("Using zk_server %s", zkServer);
-    LOG_OPER("Using zk_registration_prefix %s", zkRegistrationPrefix);
+    LOG_OPER("Using zk_server %s", zkServer.c_str());
+    LOG_OPER("Using zk_registration_prefix %s", zkRegistrationPrefix.c_str());
 
     if (!zkAggSelectorKey.empty()) {
-        LOG_OPER("Using zk_agg_selector %s", zkAggSelectorKey);
+        LOG_OPER("Using zk_agg_selector %s", zkAggSelectorKey.c_str());
         ZKClient::setAggSelectorStrategy(zkAggSelectorKey);
     }
 
