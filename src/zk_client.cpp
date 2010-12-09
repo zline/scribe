@@ -80,6 +80,10 @@ void ZKClient::setAggSelectorStrategy(const std::string & strategy) {
     zkAggSelectorKey = strategy;
 }
 
+int ZKClient::getConnectionState() {
+    return connectionState;
+}
+
 bool ZKClient::connect(const std::string & server,
         const std::string & registrationPrefix,
         int handlerPort) {
