@@ -24,31 +24,38 @@ using namespace std;
 using boost::lexical_cast;
 using boost::shared_ptr;
 
-shared_ptr<ZKClient> g_ZKClient;
+static const int ZOOKEEPER_CONNECT_TIMEOUT_SECONDS = 10;
+static std::string ZKClient::zkAggSelectorKey;
+//shared_ptr<ZKClient> g_ZKClient;
 
 /*
  * Global Zookeeper watcher handles all callbacks.
  */
-void watcher(zhandle_t *zzh, int type, int state,
+void ZKClient::watcher(zhandle_t *zzh, int type, int state,
     const char *path, void *watcherCtx) {
+  ZKClient zkClient = static_cast<ZKClient>(watcherCtx);
+  this.state = state;
+  if (state == ZOO_CONNECTED_STATE) {
+      sem_post(&zkClient.connectLatch);
+  }
 
   // Zookeeper session established so attempt registration.
   if ((state == ZOO_CONNECTED_STATE) &&
       (type == ZOO_SESSION_EVENT)) {
-    g_ZKClient->registerTask();
+    zkClient->registerTask();
   }
 
   // Registration znode was deleted so attempt registration.
   else if ((state == ZOO_CONNECTED_STATE) &&
       (type == ZOO_DELETED_EVENT) &&
-      (lexical_cast<string>(path) == g_ZKClient->zkFullRegistrationName)) {
-    g_ZKClient->registerTask();
+      (lexical_cast<string>(path) == zkClient->zkFullRegistrationName)) {
+    zkClient->registerTask();
   }
 
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
-    g_ZKClient->disconnect();
-		g_ZKClient->connect();
+    zkClient->disconnect();
+    zkClient->connect();
   }
 
   // This should never happen.
@@ -57,7 +64,7 @@ void watcher(zhandle_t *zzh, int type, int state,
   }
 }
 
-ZKClient::ZKClient() {
+ZKClient::ZKClient() : connectionState(ZOO_EXPIRED_SESSION_STATE) {
   zh = NULL;
   if (debug_level) {
     zoo_set_debug_level(ZOO_LOG_LEVEL_DEBUG);
@@ -65,18 +72,39 @@ ZKClient::ZKClient() {
 }
 
 ZKClient::~ZKClient() {
-  zookeeper_close(zh);
+    if (zh != NULL) {
+        zookeeper_close(zh);
+    }
 }
 
-void ZKClient::connect() {
+void ZKClient::setAggSelectorStrategy(const std::string & strategy) {
+    zkAggSelectorKey = strategy;
+}
+
+bool ZKClient::connect(const std::string & server,
+        const std::string & registrationPrefix,
+        int handlerPort) {
   LOG_DEBUG("Connecting to zookeeper.");
-  zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, 0, 0);
+  state = ZOO_CONNECTING_STATE;
+  this.zkServer = server;
+  this.zkRegistrationPrefix = registrationPrefix;
+  this.scribeHandlerPort = handlerPort;
+
+  // Asynchronously connect to zookeeper, then wait for the connection to be established.
+  sem_init(&sem, 0, 0);
+  zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, this, 0);
+  timespec ts;
+  ts.tv_sec = ZOOKEEPER_CONNECT_TIMEOUT_SECONDS;
+  ts.tv_nsec = 0;
+  int result = sem_timedwait(&sem, &ts);
+  return result == 0;
 }
 
 void ZKClient::disconnect() {
   LOG_DEBUG("Disconnecting from zookeeper.");
   zookeeper_close(zh);
   zh = NULL;
+  state = ZOO_EXPIRED_SESSION_STATE;
 }
 
 bool ZKClient::registerTask() {
@@ -146,7 +174,7 @@ bool ZKClient::updateStatus(std::string& current_status) {
 }
 
 // Get the best host:port to send messages to at this time.
-bool ZKClient::getRemoteScribe(std::string& parentZnode,
+bool ZKClient::getRemoteScribe(const std::string& parentZnode,
     string& remoteHost,
     unsigned long& remotePort) {
   bool ret = false;

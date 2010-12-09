@@ -115,6 +115,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long maxConn;
   StoreConf config;
   bool newThreadPerCategory;
+  auto_ptr<ZKClient> zkClient;
 
   /* mutex to syncronize access to scribeHandler.
    * A single mutex is fine since it only needs to be locked in write mode

@@ -23,36 +23,45 @@
 #ifdef USE_ZOOKEEPER
 #include "common.h"
 #include "scribe_server.h"
-
-void watcher(zhandle_t *zzh, int type, int state,
-    const char *path, void *watcherCtx);
-
-class scribeHandler;
+#include <semaphore.h>
 
 class ZKClient {
  public:
   ZKClient();
   virtual ~ZKClient();
 
-  void connect();
+  bool connect(const std::string & server,
+          const std::string & registrationPrefix,
+          int handlerPort);
   void disconnect();
   bool registerTask();
   bool updateStatus(std::string& current_status);
-  bool getRemoteScribe(std::string& parentZnode,
+  bool getRemoteScribe(const std::string& parentZnode,
       std::string& remoteHost,
       unsigned long& remotePort);
+  int getConnectionState();
 
+  static void setAggSelectorStrategy(const std::string & strategy);
+
+ private:
   zhandle_t *zh;
   std::string zkServer;
   std::string zkRegistrationPrefix;
   std::string zkRegistrationName;
   std::string zkFullRegistrationName;
-  std::string zkAggSelectorKey;
+  int connectionState;
 
   unsigned long int scribeHandlerPort;
+
+  static void watcher(zhandle_t *zzh, int type, int state,
+          const char *path, void *watcherCtx);
+
+  static std::string zkAggSelectorKey;
+
+  sem_t connectLatch;
 };
 
-extern boost::shared_ptr<ZKClient> g_ZKClient;
+//extern boost::shared_ptr<ZKClient> g_ZKClient;
 
 #endif // USE_ZOOKEEPER
 #endif // SCRIBE_ZK_CLIENT_H

@@ -160,7 +160,8 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     maxMsgPerSecond(DEFAULT_MAX_MSG_PER_SECOND),
     maxQueueSize(DEFAULT_MAX_QUEUE_SIZE),
     maxConn(DEFAULT_MAX_CONN),
-    newThreadPerCategory(true) {
+    newThreadPerCategory(true),
+    zkClient(NULL) {
   time(&lastMsgTime);
   scribeHandlerLock = scribe::concurrency::createReadWriteMutex();
 }
@@ -713,40 +714,40 @@ void scribeHandler::initialize() {
 
 #ifdef USE_ZOOKEEPER
     setStatusDetails("initialize ZKClient");
-    if (!g_ZKClient) {
+    if (!zkClient) {
       LOG_DEBUG("Creating new ZKClient.");
-      g_ZKClient = shared_ptr<ZKClient> (new ZKClient());
+      zkClient = auto_ptr<ZKClient> (new ZKClient());
     }
 
     // Disconnect if already connected to clear previous state.
-    if (g_ZKClient->zh) {
-      g_ZKClient->disconnect();
+    if (zkClient->getConnectionState() == ZOO_CONNECTED_STATE) {
+      zkClient->disconnect();
     }
+    
+    std::string zkServer;
+    std::string zkRegistrationPrefix;
+    std::string zkAggSelectorKey;
 
     // comma separated host:port pairs, each corresponding to a zk
     // server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
-    if (!config.getString("zk_server", g_ZKClient->zkServer)) {
-      g_ZKClient->zkServer.clear();
-    }
+    config.getString("zk_server", zkServer);
 
     // znode to register this task at in /path/to/znode format.
-    if (!config.getString("zk_registration_prefix", g_ZKClient->zkRegistrationPrefix)) {
-      g_ZKClient->zkRegistrationPrefix.clear();
+    config.getString("zk_registration_prefix", zkRegistrationPrefix);
+    config.getString("zk_agg_selector", zkAggSelectorKey);
+    if (!zkAggSelectorKey.empty()) {
+        ZKClient::setAggSelectorStrategy(zkAggSelectorKey);
     }
-    if (!config.getString("zk_agg_selector", g_ZKClient->zkAggSelectorKey)) {
-      g_ZKClient->zkAggSelectorKey.clear();
-    }
-    g_ZKClient->scribeHandlerPort = g_Handler->port;
 
-    if (!g_ZKClient->zkServer.empty() &&
-        !g_ZKClient->zkRegistrationPrefix.empty() &&
-        !g_ZKClient->zh) {
+    if (!zkServer.empty() &&
+        !zkRegistrationPrefix.empty() &&
+        zkClient->getConnectionState() != ZOO_CONNECTED_STATE) {
       // Only connect at this time if we register ourself. If needed,
       // we connect+disconnect when discovering remote_host.
       LOG_OPER("ZKClient connecting to <%s> with RegistrationPrefix <%s>",
-               g_ZKClient->zkServer.c_str(),
-               g_ZKClient->zkRegistrationPrefix.c_str());
-      g_ZKClient->connect();
+               zkServer.c_str(),
+               zkRegistrationPrefix.c_str());
+      zkClient->connect(zkServer, zkRegistrationPrefix, g_Handler->port);
     }
 #endif
 

@@ -211,7 +211,7 @@ scribeConn::scribeConn(const string& hostname, unsigned long port, int timeout_,
   zkRegistrationZnode = hostname;
 #endif
 }
-
+ 
 scribeConn::scribeConn(const string& service, const server_vector_t &servers, int timeout_,
     int msgThresholdBeforeReconnect_, int allowableDeltaBeforeReconnect_)
   : refCount(1),
@@ -273,12 +273,23 @@ bool scribeConn::open() {
     }
 #ifdef USE_ZOOKEEPER
     if (0 == zkRegistrationZnode.find("zk://")) {
-      string parentZnode = zkRegistrationZnode.substr(5, string::npos);
-      if (g_ZKClient->getRemoteScribe(parentZnode, remoteHost, remotePort)) {
-        LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
-      } else {
-        LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
-      }
+        Url regUrl(zkRegistrationZnode);
+        if (!regUrl.parseSuccessful()) {
+            LOG_OPER("Failed to parse zookeeper registration url %s", zkRegistrationZnode.c_str());
+        } else {
+            ZooKeeperClient zkClient;
+            std::string zkHost = url.getHost() + ":" + lexical_cast<string>(url.getPort());
+            if (!zkClient.connect(zkHost, "", g_Handler->port)) {
+                LOG_OPER("Failed to open connection to zookeeper server %s", zkHost.c_str());
+            } else {
+                if (zkClient.getRemoveScribe(regUrl.getFile(), remoteHost, remotePort)) {
+                    LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
+                } else {
+                    LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
+                }
+                zkClient.disconnect();
+            }
+        }
     }
 #endif
 
