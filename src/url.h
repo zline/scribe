@@ -2,6 +2,7 @@
 #define SCRIBE_URL_H
 
 #include <string>
+#include <regex.h>
 
 /**
  * Basic URL parser. 
