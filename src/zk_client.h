@@ -60,7 +60,5 @@ class ZKClient {
   sem_t connectLatch;
 };
 
-//extern boost::shared_ptr<ZKClient> g_ZKClient;
-
 #endif // USE_ZOOKEEPER
 #endif // SCRIBE_ZK_CLIENT_H
