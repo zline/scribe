@@ -32,10 +32,10 @@ std::string ZKClient::zkAggSelectorKey;
  */
 void ZKClient::watcher(zhandle_t *zzh, int type, int state,
     const char *path, void *watcherCtx) {
-  ZKClient * zkClient = static_cast<ZKClient>(watcherCtx);
-  zkClient->state = state;
+  ZKClient * zkClient = static_cast<ZKClient *>(watcherCtx);
+  zkClient->connectionState = state;
   if (state == ZOO_CONNECTED_STATE) {
-      sem_post(&zkClient.connectLatch);
+      sem_post(&zkClient->connectLatch);
   }
 
   // Zookeeper session established so attempt registration.
@@ -54,7 +54,7 @@ void ZKClient::watcher(zhandle_t *zzh, int type, int state,
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
     zkClient->disconnect();
-    zkClient->connect();
+    zkClient->connect(zkClient->zkServer, zkClient->zkRegistrationPrefix, zkClient->scribeHandlerPort));
   }
 
   // This should never happen.
@@ -84,18 +84,18 @@ bool ZKClient::connect(const std::string & server,
         const std::string & registrationPrefix,
         int handlerPort) {
   LOG_DEBUG("Connecting to zookeeper.");
-  state = ZOO_CONNECTING_STATE;
+  connectionState = ZOO_CONNECTING_STATE;
   zkServer = server;
   zkRegistrationPrefix = registrationPrefix;
   scribeHandlerPort = handlerPort;
 
   // Asynchronously connect to zookeeper, then wait for the connection to be established.
-  sem_init(&sem, 0, 0);
+  sem_init(&connectionLatch, 0, 0);
   zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, this, 0);
   timespec ts;
   ts.tv_sec = ZOOKEEPER_CONNECT_TIMEOUT_SECONDS;
   ts.tv_nsec = 0;
-  int result = sem_timedwait(&sem, &ts);
+  int result = sem_timedwait(&connectionLatch, &ts);
   return result == 0;
 }
 
