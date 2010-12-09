@@ -54,7 +54,7 @@ void ZKClient::watcher(zhandle_t *zzh, int type, int state,
   else if ((state == ZOO_EXPIRED_SESSION_STATE) && 
       (type == ZOO_SESSION_EVENT)) {
     zkClient->disconnect();
-    zkClient->connect(zkClient->zkServer, zkClient->zkRegistrationPrefix, zkClient->scribeHandlerPort));
+    zkClient->connect(zkClient->zkServer, zkClient->zkRegistrationPrefix, zkClient->scribeHandlerPort);
   }
 
   // This should never happen.
@@ -90,12 +90,12 @@ bool ZKClient::connect(const std::string & server,
   scribeHandlerPort = handlerPort;
 
   // Asynchronously connect to zookeeper, then wait for the connection to be established.
-  sem_init(&connectionLatch, 0, 0);
+  sem_init(&connectLatch, 0, 0);
   zh = zookeeper_init(zkServer.c_str(), watcher, 10000, 0, this, 0);
   timespec ts;
   ts.tv_sec = ZOOKEEPER_CONNECT_TIMEOUT_SECONDS;
   ts.tv_nsec = 0;
-  int result = sem_timedwait(&connectionLatch, &ts);
+  int result = sem_timedwait(&connectLatch, &ts);
   return result == 0;
 }
 
@@ -103,7 +103,7 @@ void ZKClient::disconnect() {
   LOG_DEBUG("Disconnecting from zookeeper.");
   zookeeper_close(zh);
   zh = NULL;
-  state = ZOO_EXPIRED_SESSION_STATE;
+  connectionState = ZOO_EXPIRED_SESSION_STATE;
 }
 
 bool ZKClient::registerTask() {
