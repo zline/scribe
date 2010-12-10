@@ -275,24 +275,26 @@ bool scribeConn::open() {
     }
 #ifdef USE_ZOOKEEPER
     if (0 == zkRegistrationZnode.find("zk://")) {
-        LOG_OPER("Found zookeeper URL %s", zkRegistrationZnode.c_str());
-        Url regUrl(zkRegistrationZnode);
-        if (!regUrl.parseSuccessful()) {
-            LOG_OPER("Failed to parse zookeeper registration url %s", zkRegistrationZnode.c_str());
+      Url regUrl(zkRegistrationZnode);
+      if (!regUrl.parseSuccessful()) {
+        LOG_OPER("Failed to parse zookeeper registration url %s", zkRegistrationZnode.c_str());
+      } else {
+        ZKClient zkClient;
+        std::string zkHost = regUrl.getHost() + ":" + lexical_cast<string>(regUrl.getPort());
+        LOG_OPER("[zk] Connecting to %s", zkHost.c_str());
+        if (!zkClient.connect(zkHost, "", g_Handler->port)) {
+          LOG_OPER("Failed to open connection to zookeeper server %s", zkHost.c_str());
         } else {
-            ZKClient zkClient;
-            std::string zkHost = regUrl.getHost() + ":" + lexical_cast<string>(regUrl.getPort());
-            if (!zkClient.connect(zkHost, "", g_Handler->port)) {
-                LOG_OPER("Failed to open connection to zookeeper server %s", zkHost.c_str());
-            } else {
-                if (zkClient.getRemoteScribe(regUrl.getFile(), remoteHost, remotePort)) {
-                    LOG_OPER("Got remote scribe from zookeeper <%s:%lu>", remoteHost.c_str(), remotePort);
-                } else {
-                    LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
-                }
-                zkClient.disconnect();
-            }
+          if (zkClient.getRemoteScribe(regUrl.getFile(), remoteHost, remotePort)) {
+            LOG_OPER("Got remote scribe <%s:%lu> from <%s>",
+                remoteHost.c_str(), remotePort, zkRegistrationZnode.c_str());
+          } else {
+            LOG_OPER("Unable to get a remote Scribe from %s", zkRegistrationZnode.c_str());
+          }
+          LOG_OPER("[zk] Disconnecting from %s", zkHost.c_str());
+          zkClient.disconnect();
         }
+      }
     }
 #endif
 
