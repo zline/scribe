@@ -141,12 +141,12 @@ void TailSource::run() {
         logEntry.message = line + "\n";
         messages.push_back(logEntry);
 
-        ResultCode rc = g_Handler->Log(messages);
-        if (rc == scribe::thrift::OK) {
+        ResultCode::type rc = g_Handler->Log(messages);
+        if (rc == scribe::thrift::ResultCode::OK) {
           //LOG_DEBUG("[%s] Successfully logged <%d> tailed messages from <%s>.",
           //    categoryHandled.c_str(), (int) messages.size(), filename.c_str());
           g_Handler->incCounter(categoryHandled, "tail good", messages.size());
-        } else if (rc == scribe::thrift::TRY_LATER) {
+        } else if (rc == scribe::thrift::ResultCode::TRY_LATER) {
           // TODO(travis): Add actual error handling.
           LOG_DEBUG("[%s] Failed logging <%d> tailed messages from <%s>.",
               categoryHandled.c_str(), (int) messages.size(), filename.c_str());

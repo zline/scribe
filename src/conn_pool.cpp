@@ -429,11 +429,11 @@ scribeConn::send(boost::shared_ptr<logentry_vector_t> messages) {
     msgs.push_back(**iter);
     categorySendCounts[(*iter)->category] += 1;
   }
-  ResultCode result = TRY_LATER;
+  ResultCode::type result = ResultCode::TRY_LATER;
   try {
     result = resendClient->Log(msgs);
 
-    if (result == OK) {
+    if (result == ResultCode::OK) {
       sentSinceLastReconnect += size;
       g_Handler->incCounter("sent", size);
 

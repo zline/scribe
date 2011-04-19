@@ -74,10 +74,10 @@ void scribeHandler::setCounter(string counter, long amount) {
   FacebookBase::setCounter(counter, amount);
 }
 
-string scribeHandler::resultCodeToString(ResultCode rc) {
-  if (rc == OK) {
+string scribeHandler::resultCodeToString(ResultCode::type rc) {
+  if (rc == ResultCode::OK) {
     return "OK";
-  } else if (rc == TRY_LATER) {
+  } else if (rc == ResultCode::TRY_LATER) {
     return "TRY_LATER";
   } else {
     LOG_OPER("ERROR: Unknown ResultCode! This may be extremely bad.");
@@ -437,17 +437,17 @@ void scribeHandler::addMessage(
 }
 
 
-ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
-  ResultCode result = TRY_LATER;
+ResultCode::type scribeHandler::Log(const vector<LogEntry>&  messages) {
+  ResultCode::type result = ResultCode::TRY_LATER;
 
   scribeHandlerLock->acquireRead();
   if(status == STOPPING) {
-    result = TRY_LATER;
+    result = ResultCode::TRY_LATER;
     goto end;
   }
 
   if (throttleRequest(messages)) {
-    result = TRY_LATER;
+    result = ResultCode::TRY_LATER;
     goto end;
   }
 
@@ -479,7 +479,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
       // This may cause some duplicate messages if some messages in this batch
       // were already added to queues
       if(status == STOPPING) {
-        result = TRY_LATER;
+        result = ResultCode::TRY_LATER;
         goto end;
       }
 
@@ -503,7 +503,7 @@ ResultCode scribeHandler::Log(const vector<LogEntry>&  messages) {
 
   }
 
-  result = OK;
+  result = ResultCode::OK;
 
  end:
   scribeHandlerLock->release();

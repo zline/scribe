@@ -37,7 +37,7 @@ typedef std::vector<boost::shared_ptr<StoreQueue> > store_list_t;
 typedef std::map<std::string, boost::shared_ptr<store_list_t> > category_map_t;
 typedef std::vector<boost::shared_ptr<Source> > source_list_t;
 
-std::string resultCodeToString(scribe::thrift::ResultCode rc);
+std::string resultCodeToString(scribe::thrift::ResultCode::type rc);
 
 class scribeHandler : virtual public scribe::thrift::scribeIf,
                               public facebook::fb303::FacebookBase {
@@ -49,7 +49,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void initialize();
   void reinitialize();
 
-  scribe::thrift::ResultCode Log(const std::vector<scribe::thrift::LogEntry>& messages);
+  scribe::thrift::ResultCode::type Log(const std::vector<scribe::thrift::LogEntry>& messages);
 
   void getVersion(std::string& _return) {_return = scribeversion;}
   facebook::fb303::fb_status getStatus();
@@ -79,7 +79,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void incCounter(std::string counter, long amount);
   void setCounter(std::string counter, long amount);
 
-	std::string resultCodeToString(scribe::thrift::ResultCode rc);
+	std::string resultCodeToString(scribe::thrift::ResultCode::type rc);
 
   inline void setServer(
       boost::shared_ptr<apache::thrift::server::TNonblockingServer> & server) {
