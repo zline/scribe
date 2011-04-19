@@ -48,10 +48,12 @@ if DEBUG
    DEBUG_CPPFLAGS = -DDEBUG_TIMING
 endif
 
+BOOST_STATIC_LIBS = $(BOOST_ROOT)/lib/libboost_system.a $(BOOST_ROOT)/lib/libboost_filesystem.a  $(BOOST_ROOT)/lib/libboost_regex.a
 
 # Set libraries external to this component.
-EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
+EXTERNAL_LIBS = $(fb303_home)/lib/libfb303.a  $(thrift_home)/lib/libthrift.a $(thrift_home)/lib/libthriftnb.a -L$(hadoop_home)/lib
 EXTERNAL_LIBS += -levent -lpthread
+EXTERNAL_LIBS += $(BOOST_STATIC_LIBS)
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
 endif
@@ -75,8 +77,6 @@ AM_CPPFLAGS += -I$(fb303_home)/include/thrift/fb303
 AM_CPPFLAGS += -I$(hadoop_home)/include
 AM_CPPFLAGS += $(BOOST_CPPFLAGS)
 AM_CPPFLAGS += $(FB_CPPFLAGS) $(DEBUG_CPPFLAGS)
-
-AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB)
 
 # Section 3 #############################################################################
 # GENERATE BUILD RULES
@@ -123,6 +123,7 @@ check_PROGRAMS = $(TESTS)
 url_test_SOURCES = url.h url.cpp url_test.cpp
 url_test_CXXFLAGS = $(CPPUNIT_CFLAGS)
 url_test_LDFLAGS = $(CPPUNIT_LIBS)
+url_test_LDADD = $(BOOST_STATIC_LIBS)
 
 # Section 4 ##############################################################################
 # Set up Thrift specific activity here.
