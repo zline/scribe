@@ -18,6 +18,8 @@ static const unsigned char lzop_magic[9] =
 /* LZOP default == 256k */
 static const lzo_uint lzo_block_size = 256 * 1024l; 
 
+#define HIGHER_COMPRESSION_LEVEL 7
+
 /* compute a checksum */
 
 #define F_ADLER32_D     0x00000001L
@@ -280,7 +282,7 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
   lzo_uint32 wrk_len = 0;
   string compressedData("");
 
-  if (LZOCompressionLevel == 9)
+  if (LZOCompressionLevel >= HIGHER_COMPRESSION_LEVEL)
     wrk_len = LZO1X_999_MEM_COMPRESS;
   else
     wrk_len = LZO1X_1_MEM_COMPRESS;
@@ -304,10 +306,11 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
       const string block_data = data.substr(i, lzo_block_size);
 
       /* compress block */
-      if (LZOCompressionLevel == 9) {
-        r = lzo1x_999_compress((const unsigned char *)block_data.data(), 
-                               block_data.length(),
-                               out, &out_len, wrkmem);
+      if (LZOCompressionLevel >= HIGHER_COMPRESSION_LEVEL) {
+        r = lzo1x_999_compress_level((const unsigned char *)block_data.data(),
+                                     block_data.length(),
+                                     out, &out_len, wrkmem,
+                                     NULL, 0, 0, LZOCompressionLevel);
       } else {
         r = lzo1x_1_compress((const unsigned char *)block_data.data(), 
                              block_data.length(), 
