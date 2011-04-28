@@ -325,6 +325,11 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
         return data;
       }
 
+      /* uncompressed block checksum */
+      lzo_uint32 d_checksum = lzo_adler32(1,  // ADLER32_INIT_VALUE
+                                          (unsigned char *)block_data.data(),
+                                          block_data.length());
+
       /* write uncompressed block size */
       LZOStringAppendInt32(compressedData, block_data.length()); 
 
@@ -337,9 +342,6 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
         LZOStringAppendInt32(compressedData, out_len32);
 
         /* write uncompressed block checksum */
-        lzo_uint32 d_checksum = lzo_adler32(1,  // ADLER32_INIT_VALUE
-                                           (unsigned char *)block_data.data(), 
-                                           block_data.length());
         LZOStringAppendInt32(compressedData, d_checksum);
 
         /* write compressed block checksum */
@@ -352,6 +354,10 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
       /* Otherwise, just write the raw block */
       else {
         LZOStringAppendInt32(compressedData, block_data.length());
+
+        /* write uncompressed block checksum */
+        LZOStringAppendInt32(compressedData, d_checksum);
+
         compressedData.append(block_data);
       }
   }
