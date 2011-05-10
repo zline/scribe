@@ -63,6 +63,9 @@ endif
 if USE_TCMALLOC
   EXTERNAL_LIBS += -ltcmalloc
 endif
+if HAVE_LZO
+  EXTERNAL_LIBS += -llzo2
+endif
 
 # Section 2 ############################################################################
 # Set common flags recognized by automake.
