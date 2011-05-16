@@ -466,6 +466,28 @@ string FileStoreBase::makeFullSymlink() {
   return filename.str();
 }
 
+/**
+ * Configure a base filename that will be prefixed with `file_path',
+ * and potentially suffixed with further modifiers like sequence number
+ * or file extension.
+ *
+ * Store configuration options used:
+ *
+ *   base_filename: typically the category name.
+ *   rotate_period: If filenames should include current time information.
+ *   use_tree: If a date-based directory structure should be used.
+ *
+ * If using rotate_period, base_filename is modified in
+ * BASEFILENAME-YYYY-MM-DD-HH_HOSTNAME_PORT form.
+ * For example: test_category-2011-05-12-21_hostname_1463
+ *
+ * If using both rotate_period and use_tree, base_filename is modified in
+ * YYYY/MM/DD/HH/BASEFILENAME-YYYY-MM-DD-HH_HOSTNAME_PORT form.
+ * For example: 2011/05/12/21/test_category-2011-05-12-21_hostname_1463
+ *
+ * If neither rotate_period nor use_tree are specified, base_filename is
+ * returned unmodified.
+ */
 string FileStoreBase::makeBaseFilename(struct tm* creation_time) {
   ostringstream filename;
 

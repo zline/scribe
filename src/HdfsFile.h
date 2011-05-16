@@ -46,6 +46,7 @@ class HdfsFile : public FileInterface {
   hdfsFS fileSys;
   hdfsFile hfile;
   hdfsFS connectToPath(const char* uri);
+  bool writeHelper(const std::string& data); // Actually write data.
 
 #ifdef LZO_STREAMING
   /* Streaming LZO write support */

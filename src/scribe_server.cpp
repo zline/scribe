@@ -278,9 +278,6 @@ bool scribeHandler::createCategoryFromModel(
     pstore = shared_ptr<StoreQueue>(new StoreQueue(model, category));
     LOG_OPER("[%s] Creating new category store from model %s",
              category.c_str(), model->getCategoryHandled().c_str());
-
-    // queue a command to the store to open it
-    pstore->open();
   } else {
     // Use existing StoreQueue
     pstore = model;

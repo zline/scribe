@@ -9,6 +9,7 @@
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
+#include "scribe_server.h"
 
 #ifdef LZO_STREAMING
 /* magic file header for lzopack-compressed files */
@@ -35,6 +36,8 @@ static const int lzo_method = 1;
 
 using namespace std;
 
+extern boost::shared_ptr<scribeHandler> g_Handler;
+
 HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
   LOG_DEBUG("[hdfs] Connecting to <%s>", name.c_str());
 
@@ -53,7 +56,7 @@ HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer
 HdfsFile::~HdfsFile() {
   if (fileSys) {
     if (hdfsDisconnect(fileSys) == 0) {
-      LOG_OPER("[hdfs] Disconnected fileSys for <%s>", filename.c_str());
+      LOG_DEBUG("[hdfs] Disconnected fileSys for <%s>", filename.c_str());
     } else {
       LOG_OPER("[hdfs] Error disconnecting from fileSys <%s>", filename.c_str());
     }
@@ -230,7 +233,7 @@ void HdfsFile::close() {
 void HdfsFile::setShouldLZOCompress(int compressionLevel) {
   // Initialize LZO and buffers
 
-  LOG_OPER("[hdfs] setting LZO compression level to %d", compressionLevel);
+  LOG_DEBUG("[hdfs] setting LZO compression level to %d", compressionLevel);
   LZOCompressionLevel = compressionLevel;
 
   if (lzo_init() != LZO_E_OK) {
@@ -302,7 +305,7 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
    *  Compress each block and write it
    */ 
   int r = 0;
-  for (int i = 0; i < data.length(); i += lzo_block_size) {
+  for (lzo_uint i = 0; i < data.length(); i += lzo_block_size) {
       const string block_data = data.substr(i, lzo_block_size);
 
       /* compress block */
@@ -368,44 +371,36 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
   return compressedData;
 }
 
-bool HdfsFile::write(const std::string& data) {
-  if (!isOpen()) {
-    bool success = openWrite();
+/**
+ * Actually write to HDFS.
+ *
+ * @param data Data to be written unmodified to HDFS.
+ * @return Success or failure.
+ */
+bool HdfsFile::writeHelper(const string& data) {
+  tSize bytesWritten = hdfsWrite(fileSys, hfile, data.data(), (tSize) data.length());
+  g_Handler->incCounter("hdfs_bytes_written", bytesWritten);
+  return (bytesWritten == (tSize) data.length()) ? true : false;
+}
 
-    if (!success) {
-      return false;
-    }
+bool HdfsFile::write(const std::string& data) {
+  if (!isOpen() && !openWrite()) {
+    return false;
   }
 
-  tSize bytesWritten = 0;
-  /*
-    'success' indicates whether a buffer was compressed and returned.
-    a compressed buffer will only be returned once the lzo_block_size 
-    has been reached.  until then the data is buffered/queued for compression.
-  */
-  bool success = false;
-
-  if(LZOCompressionLevel != 0) {
-    const string& compressedData = LZOCompress(data, false, &success);
-    if(compressedData != data && success == true) {
-      bytesWritten = hdfsWrite(fileSys, hfile, compressedData.data(),
-                               (tSize) compressedData.length());
-
-      return (bytesWritten == (tSize)compressedData.length());
-    } else if(success == false) {
-      bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
-                               (tSize) data.length());
-      
-      return (bytesWritten == (tSize) data.length()) ? true : false;
+  if (LZOCompressionLevel > 0) {
+    bool compressSuccess;
+    const string& compressedData = LZOCompress(data, false, &compressSuccess);
+    if (compressedData != data && compressSuccess == true) {
+      return writeHelper(compressedData); // Write compressed data.
+    } else if (compressSuccess == false) {
+      return writeHelper(data); // Write uncompressed data as its not compressible.
     }
   } else {
-    /* normal unbuffered/compressed write */
-    bytesWritten = hdfsWrite(fileSys, hfile, data.data(),
-                             (tSize) data.length());
-    return (bytesWritten == (tSize) data.length()) ? true : false;
+    return writeHelper(data); // No compression.
   }
 
-  return success;
+  return false;
 }
 
 void HdfsFile::flush() {
