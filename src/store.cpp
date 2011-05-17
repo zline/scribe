@@ -1479,7 +1479,11 @@ void BufferStore::configure(pStoreConf configuration, pStoreConf parent) {
 }
 
 bool BufferStore::isOpen() {
-  return primaryStore->isOpen() || secondaryStore->isOpen();
+  if (!primaryStore || !secondaryStore) {
+    return false;
+  } else {
+    return primaryStore->isOpen() || secondaryStore->isOpen();
+  }
 }
 
 bool BufferStore::open() {
