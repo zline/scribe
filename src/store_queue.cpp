@@ -213,7 +213,6 @@ void StoreQueue::threadMember() {
   struct timespec abs_timeout;
 
   bool stop = false;
-  bool open = false;
   while (!stop) {
 
     // handle commands
@@ -226,11 +225,9 @@ void StoreQueue::threadMember() {
       switch (cmd.command) {
       case CMD_CONFIGURE:
         configureInline(cmd.configuration);
-        open = true;
         break;
       case CMD_OPEN:
         openInline();
-        open = true;
         break;
       case CMD_STOP:
         stop = true;
@@ -245,7 +242,9 @@ void StoreQueue::threadMember() {
     time_t this_loop;
     time(&this_loop);
     if (!stop && ((this_loop - last_periodic_check) >= checkPeriod)) {
-      if (open) store->periodicCheck();
+      if (store->isOpen()) {
+        store->periodicCheck();
+      }
       last_periodic_check = this_loop;
     }
 
