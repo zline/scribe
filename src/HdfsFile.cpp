@@ -6,6 +6,7 @@
 //
 
 #include <limits>
+#include <errno.h>
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
@@ -453,7 +454,10 @@ void HdfsFile::listImpl(const std::string& path,
       hdfsFreeFileInfo(pHdfsFileInfo, numEntries);
     // A NULL indicates error
     } else {
-      throw std::runtime_error("hdfsListDirectory call failed");
+      if (0 == errno)   // ..but only if errno is set
+        return;
+      else
+        throw std::runtime_error("hdfsListDirectory call failed");
     }
   }
 }
