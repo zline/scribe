@@ -48,10 +48,10 @@
 #include <boost/filesystem/convenience.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/lexical_cast.hpp>
 
 #ifdef USE_ZOOKEEPER
 #include <time.h>
-#include <boost/lexical_cast.hpp>
 #include <zookeeper.h>
 #endif
 

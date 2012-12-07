@@ -1,5 +1,6 @@
 #include "url.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 const std::string URL_REGEX = "\\([a-zA-Z][a-zA-Z]*\\)://\\([a-zA-Z.0-9]*\\):\\([0-9][0-9]*\\)\\(/.*\\)";
 const int URL_REGEX_GROUPS = 5;
