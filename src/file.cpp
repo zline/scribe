@@ -69,7 +69,7 @@ StdFile::StdFile(const std::string& name, bool frame)
 
 StdFile::~StdFile() {
   if (inputBuffer) {
-    delete[] inputBuffer;
+    free(inputBuffer);
     inputBuffer = NULL;
   }
 }

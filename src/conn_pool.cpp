@@ -184,10 +184,11 @@ int ConnPool::sendCommon(const string &key,
   pthread_mutex_lock(&mapMutex);
   conn_map_t::iterator iter = connMap.find(key);
   if (iter != connMap.end()) {
-    (*iter).second->lock();
+    shared_ptr<scribeConn> conn = (*iter).second;
+    conn->lock();
     pthread_mutex_unlock(&mapMutex);
-    int result = (*iter).second->send(messages);
-    (*iter).second->unlock();
+    int result = conn->send(messages);
+    conn->unlock();
     return result;
   } else {
     LOG_OPER("send failed. No connection pool entry for <%s>", key.c_str());

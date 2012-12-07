@@ -153,6 +153,7 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
     port(server_port),
     numThriftServerThreads(DEFAULT_SERVER_THREADS),
     checkPeriod(DEFAULT_CHECK_PERIOD),
+    updateStatusInterval(DEFAULT_UPDATE_STATUS_INTERVAL),
     configFilename(config_file),
     status(STARTING),
     statusDetails("initial state"),
