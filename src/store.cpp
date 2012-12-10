@@ -199,6 +199,7 @@ FileStoreBase::FileStoreBase(StoreQueue* storeq,
     storeTree(false),
     writeStats(true),
     lzoCompressionLevel(0),
+    log_calls(false),
     rotateOnReopen(false),
     currentSize(0),
     lastRollTime(0),
@@ -321,6 +322,13 @@ void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
   configuration->getString("fs_type", fsType);
 
   configuration->getUnsigned("lzo_compression", lzoCompressionLevel);
+  if (configuration->getString("log_calls", tmp)) {
+    if (0 == tmp.compare("yes")) {
+      log_calls = true;
+    } else {
+      log_calls = false;
+    }
+  }
   configuration->getUnsigned("max_size", maxSize);
   if(0 == maxSize) {
     maxSize = ULONG_MAX;
@@ -356,6 +364,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   storeTree = base->storeTree;
   writeStats = base->writeStats;
   lzoCompressionLevel = base->lzoCompressionLevel;
+  log_calls = base->log_calls;
   rotateOnReopen = base->rotateOnReopen;
 
   /*
@@ -784,6 +793,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       return false;
     }
     writeFile->setShouldLZOCompress(lzoCompressionLevel);
+    writeFile->setShouldLogCalls(log_calls);
 
     success = writeFile->createDirectory(baseFilePath);
 

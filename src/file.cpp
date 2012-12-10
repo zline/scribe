@@ -52,7 +52,7 @@ std::vector<std::string> FileInterface::list(const std::string& path, const std:
 }
 
 FileInterface::FileInterface(const std::string& name, bool frame)
-  : framed(frame), filename(name) {
+  : framed(frame), filename(name), log_calls(false) {
   LZOCompressionLevel = 0;
 }
 
@@ -61,6 +61,10 @@ FileInterface::~FileInterface() {
 
 void FileInterface::setShouldLZOCompress(int compressionLevel) {
   LZOCompressionLevel = compressionLevel;
+}
+
+void FileInterface::setShouldLogCalls(bool must_log) {
+  log_calls = must_log;
 }
 
 StdFile::StdFile(const std::string& name, bool frame)

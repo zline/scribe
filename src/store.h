@@ -168,6 +168,7 @@ class FileStoreBase : public Store {
   bool storeTree;
   bool writeStats;
   unsigned long lzoCompressionLevel;
+  bool log_calls;
   bool rotateOnReopen;
 
   // State

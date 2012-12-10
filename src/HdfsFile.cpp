@@ -7,6 +7,7 @@
 
 #include <limits>
 #include <errno.h>
+#include <sys/time.h>
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
@@ -372,6 +373,11 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
   return compressedData;
 }
 
+inline double tv2secs(struct timeval const tv)
+{
+    return (double)tv.tv_sec + (double)tv.tv_usec/1000000.0;
+}
+
 /**
  * Actually write to HDFS.
  *
@@ -379,7 +385,19 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
  * @return Success or failure.
  */
 bool HdfsFile::writeHelper(const string& data) {
+  struct timeval tv_start;
+  struct timeval tv_stop;
+  if (log_calls)
+    gettimeofday(&tv_start, NULL);
+  
   tSize bytesWritten = hdfsWrite(fileSys, hfile, data.data(), (tSize) data.length());
+  
+  if (log_calls)
+  {
+    gettimeofday(&tv_stop, NULL);
+    LOG_OPER("[hdfs] call: hdfsWrite(%s, %lu bytes): %.3f secs", filename.c_str(), data.length(), tv2secs(tv_stop) - tv2secs(tv_start));
+  }
+
   g_Handler->incCounter("hdfs_bytes_written", bytesWritten);
   return (bytesWritten == (tSize) data.length()) ? true : false;
 }
