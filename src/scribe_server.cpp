@@ -25,6 +25,7 @@ int debug_level = 0;
 #include "common.h"
 #include "scribe_server.h"
 #include "SourceConf.h"
+#include <boost/foreach.hpp>
 
 using namespace apache::thrift::concurrency;
 
@@ -335,12 +336,18 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
     return true;
   }
 
+  size_t totalSize = 0;
+  BOOST_FOREACH(const LogEntry & entry, messages)
+  {
+    totalSize += entry.message.size();
+  }
+  
   // Accept messages if this single vector is larger than maxQueueSize.
   // Denying would be worse as the memory has already been consumed and
   // misbehaving clients may continue sending it over and over.
-  if (messages.capacity() > maxQueueSize) {
+  if (totalSize > maxQueueSize) {
     LOG_OPER("Throttle allowing ridiculously large <%lu> byte packet with <%lu> messages for exceeding queue size.",
-        messages.capacity(), messages.size())
+        totalSize, messages.size());
     return false;
   }
 
@@ -348,9 +355,9 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // would exceed maxQueueSize.
   setQueueSizeCounter(false);
   unsigned long long queue_size = getCounter("queue size");
-  if ((queue_size + messages.capacity()) > maxQueueSize) {
+  if ((queue_size + totalSize) > maxQueueSize) {
     LOG_OPER("Throttle denying <%lu> byte packet with <%lu> messages for queue size. ",
-      messages.size(), messages.capacity());
+      totalSize, messages.size());
     LOG_OPER("Current queue size: <%llu>. Max queue size: <%llu>.",
       queue_size, maxQueueSize);
     return true;
