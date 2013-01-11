@@ -282,6 +282,8 @@ void StoreQueue::threadMember() {
         processFailedMessages(messages);
       }
       store->flush();
+      // now we assume that messages were succesfully committed to the underlying recepient
+      g_Handler->incCounter(categoryHandled, "committed", messages->size());
     }
 
     if (!stop) {
