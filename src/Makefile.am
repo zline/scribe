@@ -61,7 +61,7 @@ if USE_ZOOKEEPER
   EXTERNAL_LIBS += -lzookeeper_mt
 endif
 if USE_TCMALLOC
-  EXTERNAL_LIBS += -ltcmalloc
+  EXTERNAL_LIBS += -ltcmalloc_minimal
 endif
 if HAVE_LZO
   EXTERNAL_LIBS += -llzo2
