@@ -19,7 +19,7 @@
 
 namespace cpp scribe.thrift
 namespace java com.facebook.infrastructure.service
-namespace perl Scribe.Thrift
+namespace perl Scribe.Bucketupdater
 
 // BucketStoreMapping service exception
 exception BucketStoreMappingException {
