@@ -48,12 +48,8 @@ if DEBUG
    DEBUG_CPPFLAGS = -DDEBUG_TIMING
 endif
 
-BOOST_STATIC_LIBS = $(BOOST_ROOT)/lib/libboost_system.a $(BOOST_ROOT)/lib/libboost_filesystem.a  $(BOOST_ROOT)/lib/libboost_regex.a
-
 # Set libraries external to this component.
-EXTERNAL_LIBS = $(fb303_home)/lib/libfb303.a  $(thrift_home)/lib/libthrift.a $(thrift_home)/lib/libthriftnb.a -L$(hadoop_home)/lib
-EXTERNAL_LIBS += -levent -lpthread
-EXTERNAL_LIBS += $(BOOST_STATIC_LIBS)
+EXTERNAL_LIBS = -levent -lpthread
 if USE_SCRIBE_HDFS
   EXTERNAL_LIBS += -lhdfs -ljvm
 endif
@@ -93,16 +89,27 @@ lib_LIBRARIES = libscribe.a libdynamicbucketupdater.a
 libscribe_a_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp gen-cpp/scribe_constants.cpp
 libdynamicbucketupdater_a_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp 
 INTERNAL_LIBS = libscribe.a libdynamicbucketupdater.a
+
+# FIXME FIXME static-boost option is unsupported
+BOOST_STATIC_LIBS = $(BOOST_ROOT)/lib/libboost_system.a $(BOOST_ROOT)/lib/libboost_filesystem.a  $(BOOST_ROOT)/lib/libboost_regex.a
+EXTERNAL_LIBS += $(BOOST_STATIC_LIBS)
+
+EXTERNAL_LIBS += $(fb303_home)/lib/libfb303.a  $(thrift_home)/lib/libthrift.a $(thrift_home)/lib/libthriftnb.a -L$(hadoop_home)/lib
 endif
 
 # Shared -- multiple libraries can be defined
 if SHARED
 shareddir = $(prefix)/lib
-shared_PROGRAMS = libscribe.so
+shared_PROGRAMS = libscribe.so libdynamicbucketupdater.so
 libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp
 libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
 libscribe_so_LDFLAGS = $(SHARED_LDFLAGS)
-INTERNAL_LIBS =  libscribe.so
+libdynamicbucketupdater_so_SOURCES = gen-cpp/BucketStoreMapping.cpp gen-cpp/bucketupdater_constants.cpp gen-cpp/bucketupdater_types.cpp
+libdynamicbucketupdater_so_CXXFLAGS = $(SHARED_CXXFLAGS)
+libdynamicbucketupdater_so_LDFLAGS = $(SHARED_LDFLAGS)
+INTERNAL_LIBS =  libscribe.so libdynamicbucketupdater.so
+
+EXTERNAL_LIBS += -L$(fb303_home)/lib -lfb303 -L$(thrift_home)/lib -lthrift -lthriftnb -L$(hadoop_home)/lib $(BOOST_FILESYSTEM_LIB) $(BOOST_SYSTEM_LIB)
 endif
 
 # Binaries -- multiple progs can be defined.
