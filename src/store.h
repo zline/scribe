@@ -399,6 +399,7 @@ class NetworkStore : public Store {
   bool useConnPool;
   bool serviceBased;
   long int timeout;
+  long int reconnectDelay;
   std::string remoteHost;
   unsigned long remotePort; // long because it works with config code
 
@@ -424,6 +425,7 @@ class NetworkStore : public Store {
 
   // state
   bool opened;
+  time_t lastOpenAttempt;
   boost::shared_ptr<scribeConn> unpooledConn; // null if useConnPool
 
  private:

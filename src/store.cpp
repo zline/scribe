@@ -1847,7 +1847,8 @@ NetworkStore::NetworkStore(StoreQueue* storeq,
     lastServiceCheck(0),
     ignoreNetworkError(false),
     configmod(NULL),
-    opened(false) {
+    opened(false),
+    lastOpenAttempt(0) {
   // we can't open the connection until we get configured
 
   // the bool for opened ensures that we don't make duplicate
@@ -1877,6 +1878,10 @@ void NetworkStore::configure(pStoreConf configuration, pStoreConf parent) {
 
   if (!configuration->getInt("timeout", timeout)) {
     timeout = DEFAULT_SOCKET_TIMEOUT_MS;
+  }
+  // NOTE reconnect_delay is in milliseconds, but trimmed to seconds in implementation
+  if (!configuration->getInt("reconnect_delay", reconnectDelay)) {
+    reconnectDelay = 0;
   }
 
   // TODO figure out an appropriate way to specify the per-connection thresholds and populate msgThresholdMap
@@ -1958,9 +1963,15 @@ bool NetworkStore::open() {
      */
     return (true);
   }
+  time_t now = time(NULL);
+  if (reconnectDelay && now - lastOpenAttempt < reconnectDelay/1000)
+  {
+    setStatus("reconnect_delay is in effect");
+    return false;
+  }
+  lastOpenAttempt = now;
   if (serviceBased) {
     bool success = true;
-    time_t now = time(NULL);
 
     // Only get list of servers if we haven't already gotten them recently
     if (lastServiceCheck <= (time_t) (now - serviceCacheTimeout)) {
@@ -2035,6 +2046,7 @@ void NetworkStore::close() {
     return;
   }
   opened = false;
+  lastOpenAttempt = 0;
   if (useConnPool) {
     if (serviceBased) {
       g_connPool.close(serviceName);
@@ -2065,6 +2077,7 @@ shared_ptr<Store> NetworkStore::copy(const std::string &category) {
   store->remoteHost = remoteHost;
   store->remotePort = remotePort;
   store->serviceName = serviceName;
+  store->reconnectDelay = reconnectDelay;
 
   return copied;
 }
