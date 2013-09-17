@@ -2729,6 +2729,7 @@ boost::shared_ptr<Store> MultiStore::copy(const std::string &category) {
     tmp_copy = (*iter)->copy(category);
     store->stores.push_back(tmp_copy);
   }
+  store->m_store_can_fail = m_store_can_fail;
 
   return shared_ptr<Store>(store);
 }
@@ -2742,7 +2743,8 @@ bool MultiStore::open() {
        ++iter) {
     cur_result = (*iter)->open();
     any_result |= cur_result;
-    all_result &= cur_result;
+    if (! store_can_fail(iter))
+      all_result &= cur_result;
   }
   return (report_success == SUCCESS_ALL) ? all_result : any_result;
 }
@@ -2756,7 +2758,8 @@ bool MultiStore::isOpen() {
        ++iter) {
     cur_result = (*iter)->isOpen();
     any_result |= cur_result;
-    all_result &= cur_result;
+    if (! store_can_fail(iter))
+      all_result &= cur_result;
   }
   return (report_success == SUCCESS_ALL) ? all_result : any_result;
 }
@@ -2829,6 +2832,10 @@ void MultiStore::configure(pStoreConf configuration, pStoreConf parent) {
                  categoryHandled.c_str(), cur_type.c_str());
         cur_store->configure(cur_conf, storeConf);
         stores.push_back(cur_store);
+        
+        string can_fail_str;
+        bool can_fail = cur_conf->getString("can_fail", can_fail_str) && can_fail_str == "yes";
+        m_store_can_fail.push_back(can_fail);
       }
     }
   }
@@ -2856,7 +2863,8 @@ bool MultiStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
        ++iter) {
     cur_result = (*iter)->handleMessages(messages);
     any_result |= cur_result;
-    all_result &= cur_result;
+    if (! store_can_fail(iter)) // ignoring can_fail=yes stores in case of report_success=all
+      all_result &= cur_result;
   }
 
   // We cannot accurately report the number of messages not handled as messages

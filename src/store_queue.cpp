@@ -281,9 +281,12 @@ void StoreQueue::threadMember() {
         // Store could not handle these messages
         processFailedMessages(messages);
       }
-      store->flush();
-      // now we assume that messages were succesfully committed to the underlying recepient
-      g_Handler->incCounter(categoryHandled, "committed", messages->size());
+      else
+      {
+        store->flush();
+        // now we assume that messages were succesfully committed to the underlying recepient
+        g_Handler->incCounter(categoryHandled, "committed", messages->size());
+      }
     }
 
     if (!stop) {

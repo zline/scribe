@@ -27,6 +27,8 @@
 #ifndef SCRIBE_STORE_H
 #define SCRIBE_STORE_H
 
+#include <iterator>
+
 #include "common.h" // includes std libs, thrift, and stl typedefs
 #include "conf.h"
 #include "file.h"
@@ -85,6 +87,8 @@ class Store {
 
   // don't need to override
   virtual const std::string& getType();
+  
+  typedef std::vector< boost::shared_ptr<Store> > List;
 
  protected:
   virtual void setStatus(const std::string& new_status);
@@ -552,6 +556,11 @@ class MultiStore : public Store {
     SUCCESS_ALL
   };
   report_success_value report_success;
+  std::vector<bool> m_store_can_fail;
+  bool store_can_fail(Store::List::const_iterator store_iter)
+  {
+      return m_store_can_fail[ std::distance(Store::List::const_iterator(stores.begin()), store_iter) ];
+  }
 
  private:
   // disallow copy, assignment, and empty construction
