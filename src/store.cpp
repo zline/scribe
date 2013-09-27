@@ -218,9 +218,11 @@ void FileStoreBase::configure(pStoreConf configuration, pStoreConf parent) {
   configuration->getString("file_path", baseFilePath);
   configuration->getString("sub_directory", subDirectory);
   configuration->getString("use_hostname_sub_directory", tmp);
+  std::string add_hostname_sub_directory;
+  configuration->getString("add_hostname_sub_directory", add_hostname_sub_directory);
 
-  if (0 == tmp.compare("yes")) {
-    setHostNameSubDir();
+  if (0 == tmp.compare("yes") || add_hostname_sub_directory == "yes") {
+    setHostNameSubDir(add_hostname_sub_directory == "yes");
   }
 
   filePath = baseFilePath;
@@ -672,8 +674,8 @@ unsigned long FileStoreBase::bytesToPad(unsigned long next_message_length,
 }
 
 // set subDirectory to the name of this machine
-void FileStoreBase::setHostNameSubDir() {
-  if (!subDirectory.empty()) {
+void FileStoreBase::setHostNameSubDir(bool add_hostname_sub_directory) {
+  if (!subDirectory.empty() && ! add_hostname_sub_directory) {
     string error_msg = "WARNING: Bad config - ";
     error_msg += "use_hostname_sub_directory will override sub_directory path";
     LOG_OPER("[%s] %s", categoryHandled.c_str(), error_msg.c_str());
@@ -692,7 +694,10 @@ void FileStoreBase::setHostNameSubDir() {
     LOG_OPER("[%s] WARNING: could not get host name",
              categoryHandled.c_str());
   } else {
-    subDirectory = hoststring;
+    if (add_hostname_sub_directory && !subDirectory.empty())
+      subDirectory += (std::string("/") + hoststring);
+    else
+      subDirectory = hoststring;
   }
 }
 

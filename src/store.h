@@ -150,7 +150,7 @@ class FileStoreBase : public Store {
   int  findNewestFile(const std::string& base_filename);
   int  getFileSuffix(const std::string& filename,
                      const std::string& base_filename);
-  void setHostNameSubDir();
+  void setHostNameSubDir(bool add_hostname_sub_directory);
 
   // Configuration
   std::string baseFilePath;
