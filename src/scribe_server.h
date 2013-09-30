@@ -28,6 +28,7 @@
 #include "store_queue.h"
 #include "source.h"
 #include "common.h"
+#include "sequential_test.h"
 
 #ifdef USE_ZOOKEEPER
 #include "zk_client.h"
@@ -115,6 +116,9 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long maxConn;
   StoreConf config;
   bool newThreadPerCategory;
+  
+  std::string seqtestLogAccepts;
+  seqtest::MsgLogger seqtestAcceptsLogger;
 
 #ifdef USE_ZOOKEEPER
   std::auto_ptr<ZKClient> zkClient;

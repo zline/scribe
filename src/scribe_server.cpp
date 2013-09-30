@@ -508,7 +508,8 @@ ResultCode::type scribeHandler::Log(const vector<LogEntry>&  messages) {
 
     // Log this message
     addMessage(*msg_iter, store_list);
-
+    if (! seqtestLogAccepts.empty())
+      seqtestAcceptsLogger.log(msg_iter->message);
   }
 
   result = ResultCode::OK;
@@ -639,6 +640,8 @@ void scribeHandler::shutdown() {
   RWGuard monitor(*scribeHandlerLock, true);
   stopSources();
   stopStores();
+  if (! seqtestLogAccepts.empty())
+    seqtestAcceptsLogger.flush(seqtestLogAccepts);
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
   scribe::stopServer();
@@ -799,6 +802,11 @@ void scribeHandler::initialize() {
         perfect_config = false;
       }
     }
+    
+    seqtestAcceptsLogger.clear();
+    if (! config.getString("seqtest_log_accepts", seqtestLogAccepts))
+        seqtestLogAccepts = "";
+    
   } catch(const std::exception& e) {
     string errormsg("Bad config - exception: ");
     errormsg += e.what();
