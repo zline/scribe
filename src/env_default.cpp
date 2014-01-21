@@ -21,6 +21,10 @@
 // @author Avinash Lakshman
 // @author Anthony Giardullo
 
+#include <signal.h>
+
+#include <stdexcept>
+
 #include "common.h"
 #include "scribe_server.h"
 
@@ -93,6 +97,17 @@ uint32_t scribe::strhash::hash32(const char *s) {
 }
 
 /*
+ * SIGINT, SIGTERM handler.
+ * Here we are only (setting flags to) stopping IO loop,
+ * to keep signal handler lightweight.
+ */
+void sigterm(int)
+{
+  LOG_OPER("shutdown signal received, stopping loop");
+  g_Handler->stopLoop();
+}
+
+/*
  * Starting a scribe server.
  */
 // note: this function uses global g_Handler.
@@ -135,8 +150,18 @@ void scribe::startServer() {
   }
 #endif
 
+  struct sigaction sigact;
+  sigact.sa_handler = sigterm;
+  sigemptyset(& sigact.sa_mask);
+  sigact.sa_flags = SA_RESETHAND;
+    
+  if (0 != sigaction(SIGTERM, &sigact, 0) || 0 != sigaction(SIGINT, &sigact, 0))
+    throw std::runtime_error("failed to set shutdown signals handler");
+
   server->serve();
-  // this function never returns
+  
+  // reached in case of shutdown-by-signal: IO loop stopped, here goes other cleanup
+  g_Handler->shutdown();
 }
 
 

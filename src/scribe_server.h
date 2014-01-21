@@ -49,6 +49,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   void shutdown();
   void initialize();
   void reinitialize();
+  void stopLoop() { server->stop(); }
 
   scribe::thrift::ResultCode::type Log(const std::vector<scribe::thrift::LogEntry>& messages);
 

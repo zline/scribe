@@ -213,7 +213,7 @@ void StoreQueue::threadMember() {
   struct timespec abs_timeout;
 
   bool stop = false;
-  while (!stop) {
+  while (!stop || (mustSucceed && (failedMessages || msgQueueSize > 0))) {
 
     // handle commands
     //
