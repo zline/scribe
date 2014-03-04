@@ -864,6 +864,7 @@ void FileStore::close() {
   }
 }
 
+// TODO fdatasync option
 void FileStore::flush() {
   if (writeFile) {
     writeFile->flush();
@@ -1004,9 +1005,17 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   if (!success) {
     close();
 
-    // update messages to include only the messages that were not handled
-    if (num_written > 0) {
-      messages->erase(messages->begin(), messages->begin() + num_written);
+    if (0 != fsType.compare("hdfs"))
+    {
+      // update messages to include only the messages that were not handled
+      //
+      // NOTE: this behaviour is definitely wrong in case of hdfs:
+      // cant make such assumptions unless hflush or hsync is called;
+      // on the other hand, in the hdfs case there could be duplicates,
+      // but its ok for us: they will be filtered out later
+      if (num_written > 0) {
+        messages->erase(messages->begin(), messages->begin() + num_written);
+      }
     }
   }
 

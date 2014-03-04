@@ -424,7 +424,16 @@ bool HdfsFile::write(const std::string& data) {
 
 void HdfsFile::flush() {
   if (hfile) {
-    hdfsFlush(fileSys, hfile);
+    /*
+     * call to DFSOutputStream::hflush :
+     * Flushes out to all replicas of the block. The data is in the buffers
+     * of the DNs but not necessarily in the DN's OS buffers.
+     * It is a synchronous operation. When it returns,
+     * it guarantees that flushed data become visible to new readers. 
+     * It is not guaranteed that data has been flushed to 
+     * persistent store on the datanode. 
+     */
+    hdfsHFlush(fileSys, hfile);
   }
 }
 
