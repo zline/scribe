@@ -31,7 +31,7 @@ class HdfsFile : public FileInterface {
   bool isOpen();             // is file open?
   void close();
   bool write(const std::string& data);
-  void flush();
+  bool flush();
   unsigned long fileSize();
   long readNext(std::string& _return);
   void deleteFile();
@@ -95,7 +95,7 @@ class HdfsFile : public FileInterface {
   bool isOpen()   { return false; };           // is file open?
   void close()    {};
   bool write(const std::string& data) { return false; };
-  void flush()    {};
+  bool flush()    {};
   void sync()     {};
   unsigned long fileSize() { return 0; };
   long readNext(std::string& _return) { return false; };

@@ -422,7 +422,7 @@ bool HdfsFile::write(const std::string& data) {
   return false;
 }
 
-void HdfsFile::flush() {
+bool HdfsFile::flush() {
   if (hfile) {
     /*
      * call to DFSOutputStream::hflush :
@@ -433,8 +433,22 @@ void HdfsFile::flush() {
      * It is not guaranteed that data has been flushed to 
      * persistent store on the datanode. 
      */
-    hdfsHFlush(fileSys, hfile);
+    struct timeval tv_start;
+    struct timeval tv_stop;
+    if (log_calls)
+        gettimeofday(&tv_start, NULL);
+  
+    bool result = (0 == hdfsHFlush(fileSys, hfile));
+    
+    if (log_calls)
+    {
+      gettimeofday(&tv_stop, NULL);
+      LOG_OPER("[hdfs] call: hdfsHFlush(%s): %.3f secs", filename.c_str(), tv2secs(tv_stop) - tv2secs(tv_start));
+    }
+    return result;
   }
+  else
+    return false;
 }
 
 unsigned long HdfsFile::fileSize() {

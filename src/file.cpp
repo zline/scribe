@@ -152,10 +152,13 @@ bool StdFile::write(const std::string& data) {
   return true;
 }
 
-void StdFile::flush() {
+bool StdFile::flush() {
   if (file.is_open()) {
     file.flush();
+    return ! file.bad();
   }
+  else
+    return false;
 }
 
 /*

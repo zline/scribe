@@ -277,13 +277,12 @@ void StoreQueue::threadMember() {
     pthread_mutex_unlock(&msgMutex);
 
     if (messages) {
-      if (!store->handleMessages(messages)) {
+      if (!store->handleMessages(messages) || !store->flush()) {
         // Store could not handle these messages
         processFailedMessages(messages);
       }
       else
       {
-        store->flush();
         // now we assume that messages were succesfully committed to the underlying recepient
         g_Handler->incCounter(categoryHandled, "committed", messages->size());
       }

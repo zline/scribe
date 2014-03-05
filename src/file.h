@@ -40,7 +40,7 @@ class FileInterface {
   virtual bool isOpen() = 0;
   virtual void close() = 0;
   virtual bool write(const std::string& data) = 0;
-  virtual void flush() = 0;
+  virtual bool flush() = 0;
   virtual unsigned long fileSize() = 0;
   virtual long readNext(std::string& _return) = 0;
   virtual void deleteFile() = 0;
@@ -72,7 +72,7 @@ class StdFile : public FileInterface {
   bool isOpen();
   void close();
   bool write(const std::string& data);
-  void flush();
+  bool flush();
   unsigned long fileSize();
   long readNext(std::string& _return);
   void deleteFile();

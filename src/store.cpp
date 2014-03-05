@@ -868,10 +868,8 @@ void FileStore::close() {
 }
 
 // TODO fdatasync option
-void FileStore::flush() {
-  if (writeFile) {
-    writeFile->flush();
-  }
+bool FileStore::flush() {
+  return writeFile ? writeFile->flush() : false;
 }
 
 shared_ptr<Store> FileStore::copy(const std::string &category) {
@@ -1245,10 +1243,10 @@ void ThriftFileStore::close() {
   thriftFileTransport.reset();
 }
 
-void ThriftFileStore::flush() {
+bool ThriftFileStore::flush() {
   // TFileTransport has its own periodic flushing mechanism, and we
   // introduce deadlocks if we try to call it from more than one place
-  return;
+  return true;
 }
 
 bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_time) {
@@ -1545,13 +1543,14 @@ void BufferStore::close() {
   }
 }
 
-void BufferStore::flush() {
+bool BufferStore::flush() {
   if (primaryStore->isOpen()) {
     primaryStore->flush();
   }
   if (secondaryStore->isOpen()) {
     secondaryStore->flush();
   }
+  return true;  // FIXME
 }
 
 shared_ptr<Store> BufferStore::copy(const std::string &category) {
@@ -2146,8 +2145,9 @@ NetworkStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   return (ret == CONN_OK);
 }
 
-void NetworkStore::flush() {
+bool NetworkStore::flush() {
   // Nothing to do
+  return true;
 }
 
 BucketStore::BucketStore(StoreQueue* storeq,
@@ -2470,12 +2470,15 @@ void BucketStore::close() {
   opened = false;
 }
 
-void BucketStore::flush() {
+bool BucketStore::flush() {
+  bool success = true;
   for (std::vector<shared_ptr<Store> >::iterator iter = buckets.begin();
        iter != buckets.end();
        ++iter) {
-    (*iter)->flush();
+    if (! (*iter)->flush())
+      success = false;
   }
+  return success;
 }
 
 string BucketStore::getStatus() {
@@ -2720,7 +2723,8 @@ bool NullStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   return true;
 }
 
-void NullStore::flush() {
+bool NullStore::flush() {
+  return true;
 }
 
 bool NullStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,
@@ -2912,12 +2916,20 @@ void MultiStore::periodicCheck() {
   }
 }
 
-void MultiStore::flush() {
+bool MultiStore::flush() {
+  // FIXME some paste from handleMessages
+  bool all_result = true;
+  bool any_result = false;
+  bool cur_result;
   for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
        iter != stores.end();
        ++iter) {
-    (*iter)->flush();
+    cur_result = (*iter)->flush();
+    any_result |= cur_result;
+    if (! store_can_fail(iter))
+      all_result &= cur_result;
   }
+  return (report_success == SUCCESS_ALL) ? all_result : any_result;
 }
 
 CategoryStore::CategoryStore(StoreQueue* storeq,
@@ -3080,12 +3092,15 @@ void CategoryStore::periodicCheck() {
   }
 }
 
-void CategoryStore::flush() {
+bool CategoryStore::flush() {
+  bool success = true;
   for (map<string, shared_ptr<Store> >::iterator iter = stores.begin();
       iter != stores.end();
       ++iter) {
-    iter->second->flush();
+    if (! iter->second->flush())
+      success = false;
   }
+  return success;
 }
 
 MultiFileStore::MultiFileStore(StoreQueue* storeq,

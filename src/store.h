@@ -73,7 +73,7 @@ class Store {
   // On failure, returns false and messages contains any un-processed messages
   virtual bool handleMessages(boost::shared_ptr<logentry_vector_t> messages) = 0;
   virtual void periodicCheck() {}
-  virtual void flush() = 0;
+  virtual bool flush() = 0;
 
   virtual std::string getStatus();
 
@@ -207,7 +207,7 @@ class FileStore : public FileStoreBase {
   bool isOpen();
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
-  void flush();
+  bool flush();
 
   // Each read does its own open and close and gets the whole file.
   // This is separate from the write file, and not really a consistent
@@ -255,7 +255,7 @@ class ThriftFileStore : public FileStoreBase {
   bool isOpen();
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
-  void flush();
+  bool flush();
   bool createFileDirectory();
 
  protected:
@@ -298,7 +298,7 @@ class BufferStore : public Store {
   bool isOpen();
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
-  void flush();
+  bool flush();
   void periodicCheck();
 
   std::string getStatus();
@@ -389,7 +389,7 @@ class NetworkStore : public Store {
   bool isOpen();
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
-  void flush();
+  bool flush();
   void periodicCheck();
 
  protected:
@@ -453,7 +453,7 @@ class BucketStore : public Store {
   bool isOpen();
   void configure(pStoreConf configuration, pStoreConf parent);
   void close();
-  void flush();
+  bool flush();
   void periodicCheck();
 
   std::string getStatus();
@@ -506,7 +506,7 @@ class NullStore : public Store {
   void close();
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
-  void flush();
+  bool flush();
 
   // null stores are readable, but you never get anything
   virtual bool readOldest(boost::shared_ptr<logentry_vector_t> messages,
@@ -543,7 +543,7 @@ class MultiStore : public Store {
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   void periodicCheck();
-  void flush();
+  bool flush();
 
   // read won't make sense since we don't know which store to read from
   bool readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages,
@@ -595,7 +595,7 @@ class CategoryStore : public Store {
 
   bool handleMessages(boost::shared_ptr<logentry_vector_t> messages);
   void periodicCheck();
-  void flush();
+  bool flush();
 
  protected:
   void configureCommon(pStoreConf configuration, pStoreConf parent,
