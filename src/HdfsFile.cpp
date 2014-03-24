@@ -397,6 +397,8 @@ bool HdfsFile::writeHelper(const string& data) {
     gettimeofday(&tv_stop, NULL);
     LOG_OPER("[hdfs] call: hdfsWrite(%s, %lu bytes): %.3f secs", filename.c_str(), data.length(), tv2secs(tv_stop) - tv2secs(tv_start));
   }
+  if (bytesWritten == tSize(-1))
+      return false;
 
   g_Handler->incCounter("hdfs_bytes_written", bytesWritten);
   return (bytesWritten == (tSize) data.length()) ? true : false;
