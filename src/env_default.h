@@ -20,6 +20,10 @@
 #ifndef SCRIBE_ENV
 #define SCRIBE_ENV
 
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
 #include "thrift/protocol/TBinaryProtocol.h"
 #include "thrift/server/TNonblockingServer.h"
 #include "thrift/concurrency/ThreadManager.h"
@@ -57,6 +61,12 @@ const std::string scribeversion("2.2");
 /*
  * Logging
  */
+#ifdef SYS_gettid
+inline pid_t gettid() { return pid_t(syscall(SYS_gettid)); }
+#else
+#error "SYS_gettid unavailable on this system"
+#endif
+
 #define LOG_OPER(format_string,...)                                     \
   {                                                                     \
     time_t now;                                                         \
@@ -64,7 +74,7 @@ const std::string scribeversion("2.2");
     time(&now);                                                         \
     ctime_r(&now, dbgtime);                                             \
     dbgtime[24] = '\0';                                                 \
-    fprintf(stderr,"[%s %s:%d] " #format_string " \n", dbgtime, __FILE__, __LINE__, ##__VA_ARGS__); \
+    fprintf(stderr,"[%s %s:%d] [thread %d] " #format_string " \n", dbgtime, __FILE__, __LINE__, gettid(), ##__VA_ARGS__); \
   }
 
 extern int debug_level;
@@ -76,7 +86,7 @@ extern int debug_level;
       time(&now);                                                          \
       ctime_r(&now, dbgtime);                                              \
       dbgtime[24] = '\0';                                                  \
-      fprintf(stderr,"[%s %s:%d] " #format_string " \n", dbgtime, __FILE__, __LINE__, ##__VA_ARGS__); \
+      fprintf(stderr,"[%s %s:%d] [thread %d] " #format_string " \n", dbgtime, __FILE__, __LINE__, gettid(), ##__VA_ARGS__); \
     }                                                                      \
   }
 

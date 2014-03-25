@@ -8,6 +8,8 @@
 #include <limits>
 #include <errno.h>
 #include <sys/time.h>
+#include <boost/format.hpp>
+#include <boost/lexical_cast.hpp>
 #include "common.h"
 #include "file.h"
 #include "HdfsFile.h"
@@ -39,6 +41,38 @@ static const int lzo_method = 1;
 using namespace std;
 
 extern boost::shared_ptr<scribeHandler> g_Handler;
+
+inline double tv2secs(struct timeval const tv)
+{
+    return (double)tv.tv_sec + (double)tv.tv_usec/1000000.0;
+}
+
+class CallLogger
+{
+public:
+  template<typename T> CallLogger(bool active, const T & message):
+    m_active(active),
+    m_message(boost::lexical_cast<std::string>(message))
+  {
+    if (m_active)
+      gettimeofday(&m_tv_start, NULL);
+  }
+  
+  ~CallLogger()
+  {
+    if (! m_active)
+      return;
+    
+    struct timeval tv_stop;
+    gettimeofday(&tv_stop, NULL);
+    LOG_OPER("%s: %.3f secs", m_message.c_str(), tv2secs(tv_stop) - tv2secs(m_tv_start));
+  }
+
+private:
+  bool m_active;
+  std::string m_message;
+  struct timeval m_tv_start;
+};
 
 HdfsFile::HdfsFile(const string& name) : FileInterface(name, false), inputBuffer_(NULL), bufferSize_(0) {
   LOG_DEBUG("[hdfs] Connecting to <%s>", name.c_str());
@@ -72,6 +106,7 @@ bool HdfsFile::openRead() {
     fileSys = connectToPath(filename.c_str());
   }
   if (fileSys) {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsOpenFile(%s, O_RDONLY)") % filename.c_str());
     hfile = hdfsOpenFile(fileSys, filename.c_str(), O_RDONLY, 0, 0, 0);
   }
   if (hfile) {
@@ -131,7 +166,10 @@ bool HdfsFile::openWrite() {
   int flags = O_WRONLY;
 
   LOG_DEBUG("[hdfs] Opening <%s>", filename.c_str());
-  hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+  {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsOpenFile(%s)") % filename.c_str());
+    hfile = hdfsOpenFile(fileSys, filename.c_str(), flags, 0, 0, 0);
+  }
   if (!hfile) {
     LOG_OPER("[hdfs] Failed opening file <%s>", filename.c_str());
     return false;
@@ -221,7 +259,12 @@ void HdfsFile::close() {
     hdfsWrite(fileSys, hfile, &eof, sizeof(unsigned int));
   }
 
-  if (hdfsCloseFile(fileSys, hfile) == 0) {
+  int ret;
+  {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsCloseFile(%s)") % filename.c_str());
+    ret = hdfsCloseFile(fileSys, hfile);
+  }
+  if (ret == 0) {
     LOG_OPER("[hdfs] Closed <%s>", filename.c_str());
   } else {
     LOG_OPER("[hdfs] Error closing <%s>", filename.c_str());
@@ -373,11 +416,6 @@ const std::string HdfsFile::LZOCompress(const std::string& inputData, bool force
   return compressedData;
 }
 
-inline double tv2secs(struct timeval const tv)
-{
-    return (double)tv.tv_sec + (double)tv.tv_usec/1000000.0;
-}
-
 /**
  * Actually write to HDFS.
  *
@@ -385,17 +423,10 @@ inline double tv2secs(struct timeval const tv)
  * @return Success or failure.
  */
 bool HdfsFile::writeHelper(const string& data) {
-  struct timeval tv_start;
-  struct timeval tv_stop;
-  if (log_calls)
-    gettimeofday(&tv_start, NULL);
-  
-  tSize bytesWritten = hdfsWrite(fileSys, hfile, data.data(), (tSize) data.length());
-  
-  if (log_calls)
+  tSize bytesWritten;
   {
-    gettimeofday(&tv_stop, NULL);
-    LOG_OPER("[hdfs] call: hdfsWrite(%s, %lu bytes): %.3f secs", filename.c_str(), data.length(), tv2secs(tv_stop) - tv2secs(tv_start));
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsWrite(%s, %lu bytes)") % filename.c_str() % data.length());
+    bytesWritten = hdfsWrite(fileSys, hfile, data.data(), (tSize) data.length());
   }
   if (bytesWritten == tSize(-1))
       return false;
@@ -435,19 +466,8 @@ bool HdfsFile::flush() {
      * It is not guaranteed that data has been flushed to 
      * persistent store on the datanode. 
      */
-    struct timeval tv_start;
-    struct timeval tv_stop;
-    if (log_calls)
-        gettimeofday(&tv_start, NULL);
-  
-    bool result = (0 == hdfsHFlush(fileSys, hfile));
-    
-    if (log_calls)
-    {
-      gettimeofday(&tv_stop, NULL);
-      LOG_OPER("[hdfs] call: hdfsHFlush(%s): %.3f secs", filename.c_str(), tv2secs(tv_stop) - tv2secs(tv_start));
-    }
-    return result;
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsHFlush(%s)") % filename.c_str());
+    return 0 == hdfsHFlush(fileSys, hfile);
   }
   else
     return false;
@@ -457,10 +477,11 @@ unsigned long HdfsFile::fileSize() {
   long size = 0L;
 
   if (fileSys) {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsGetPathInfo(%s)") % filename.c_str());
     hdfsFileInfo* pFileInfo = hdfsGetPathInfo(fileSys, filename.c_str());
     if (pFileInfo != NULL) {
       size = pFileInfo->mSize;
-      hdfsFreeFileInfo(pFileInfo, 1);
+      hdfsFreeFileInfo(pFileInfo, 1);   // its ok to include time of this call into the logger
     }
   }
   return size;
@@ -468,6 +489,7 @@ unsigned long HdfsFile::fileSize() {
 
 void HdfsFile::deleteFile() {
   if (fileSys) {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsDelete(%s)") % filename.c_str());
     hdfsDelete(fileSys, filename.c_str(), 0);
   }
   LOG_OPER("[hdfs] deleteFile %s", filename.c_str());
@@ -479,6 +501,7 @@ void HdfsFile::listImpl(const std::string& path,
     return;
   }
 
+  CallLogger logger(log_calls, boost::format("[hdfs] listImpl(%s)") % path.c_str());
   int value = hdfsExists(fileSys, path.c_str());
   if (value == -1) {
     return;
@@ -551,6 +574,7 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
   if (strncmp(proto, uri, strlen(proto)) != 0) {
     // uri doesn't start with hdfs:// -> use default:0, which is special
     // to libhdfs.
+    CallLogger logger(log_calls, std::string("[hdfs] call: hdfsConnectNewInstance(default)"));
     return hdfsConnectNewInstance("default", 0);
   }
  
@@ -578,7 +602,11 @@ hdfsFS HdfsFile::connectToPath(const char* uri) {
   memcpy((char*) host, uri, colon - uri);
   host[colon - uri] = '\0';
  
-  hdfsFS fs = hdfsConnectNewInstance(host, port);
+  hdfsFS fs;
+  {
+    CallLogger logger(log_calls, boost::format("[hdfs] call: hdfsConnectNewInstance(%s:%d)") % host % port);
+    fs = hdfsConnectNewInstance(host, port);
+  }
   if (!fs) {
     LOG_OPER("[hdfs] Error connecting to %s:%lu", host, port);
   }
