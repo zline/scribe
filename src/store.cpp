@@ -862,9 +862,8 @@ bool FileStore::isOpen() {
 }
 
 void FileStore::close() {
-  if (writeFile) {
+  if (isOpen())
     writeFile->close();
-  }
 }
 
 // TODO fdatasync option

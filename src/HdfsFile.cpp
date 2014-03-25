@@ -228,8 +228,7 @@ bool HdfsFile::openTruncate() {
 }
 
 bool HdfsFile::isOpen() {
-   bool retVal = (hfile) ? true : false;
-   return retVal;
+   return bool(hfile);
 }
 
 void HdfsFile::close() {
