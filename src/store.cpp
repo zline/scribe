@@ -2769,7 +2769,7 @@ boost::shared_ptr<Store> MultiStore::copy(const std::string &category) {
 
 bool MultiStore::open() {
   bool all_result = true;
-  bool any_result = false;
+  bool any_result = false;  // also used in case of SUCCESS_LB
   bool cur_result;
   for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
        iter != stores.end();
@@ -2784,7 +2784,7 @@ bool MultiStore::open() {
 
 bool MultiStore::isOpen() {
   bool all_result = true;
-  bool any_result = false;
+  bool any_result = false;  // also used in case of SUCCESS_LB
   bool cur_result;
   for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
        iter != stores.end();
@@ -2828,6 +2828,12 @@ void MultiStore::configure(pStoreConf configuration, pStoreConf parent) {
     } else if (0 == report_preference.compare("any")) {
       report_success = SUCCESS_ANY;
       LOG_OPER("[%s] MULTI: Logging success if any store succeeds.",
+               categoryHandled.c_str());
+    } else if (0 == report_preference.compare("load_balance")) {
+      // TODO: store weights
+      report_success = SUCCESS_LB;
+      m_roundrobin_idx = 0U;
+      LOG_OPER("[%s] MULTI: Logging success if any of load-balanced stores succeeds.",
                categoryHandled.c_str());
     } else {
       LOG_OPER("[%s] MULTI: %s is an invalid value for report_success.",
@@ -2888,22 +2894,44 @@ void MultiStore::close() {
 }
 
 bool MultiStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
-  bool all_result = true;
-  bool any_result = false;
-  bool cur_result;
-  for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
-       iter != stores.end();
-       ++iter) {
-    cur_result = (*iter)->handleMessages(messages);
-    any_result |= cur_result;
-    if (! store_can_fail(iter)) // ignoring can_fail=yes stores in case of report_success=all
-      all_result &= cur_result;
+  if (report_success == SUCCESS_LB)
+  {
+    if (stores.empty())
+      return false;
+    
+    Store::List::size_type const roundrobin_start_idx = m_roundrobin_idx;
+    do {
+      bool result = stores[m_roundrobin_idx]->handleMessages(messages);
+      // pointer must be updated in any case
+      m_roundrobin_idx++;
+      if (m_roundrobin_idx == stores.size())
+        m_roundrobin_idx = 0U;
+      if (result)
+        return true;
+    }
+    while (m_roundrobin_idx != roundrobin_start_idx);
+    
+    return false;   // returned back to the original m_roundrobin_idx - no more stores to try
   }
+  else
+  {
+    bool all_result = true;
+    bool any_result = false;
+    bool cur_result;
+    for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
+         iter != stores.end();
+         ++iter) {
+      cur_result = (*iter)->handleMessages(messages);
+      any_result |= cur_result;
+      if (! store_can_fail(iter)) // ignoring can_fail=yes stores in case of report_success=all
+        all_result &= cur_result;
+    }
 
-  // We cannot accurately report the number of messages not handled as messages
-  // can be partially handled by a subset of stores.  So a multistore failure
-  // will over-record the number of lost messages.
-  return (report_success == SUCCESS_ALL) ? all_result : any_result;
+    // We cannot accurately report the number of messages not handled as messages
+    // can be partially handled by a subset of stores.  So a multistore failure
+    // will over-record the number of lost messages.
+    return (report_success == SUCCESS_ALL) ? all_result : any_result;
+  }
 }
 
 // Call periodicCheck on all contained stores
@@ -2918,7 +2946,7 @@ void MultiStore::periodicCheck() {
 bool MultiStore::flush() {
   // FIXME some paste from handleMessages
   bool all_result = true;
-  bool any_result = false;
+  bool any_result = false;  // also used in case of SUCCESS_LB
   bool cur_result;
   for (std::vector<boost::shared_ptr<Store> >::iterator iter = stores.begin();
        iter != stores.end();

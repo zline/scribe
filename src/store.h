@@ -553,9 +553,11 @@ class MultiStore : public Store {
 
  protected:
   std::vector<boost::shared_ptr<Store> > stores;
+  Store::List::size_type m_roundrobin_idx;  // for SUCCESS_LB report_success mode
   enum report_success_value {
     SUCCESS_ANY = 1,
-    SUCCESS_ALL
+    SUCCESS_ALL,
+    SUCCESS_LB  // load-balanced _ANY
   };
   report_success_value report_success;
   std::vector<bool> m_store_can_fail;
