@@ -522,7 +522,7 @@ void HdfsFile::listImpl(const std::string& path,
       if (0 == errno)   // ..but only if errno is set
         return;
       else
-        throw std::runtime_error("hdfsListDirectory call failed");
+        throw std::runtime_error((boost::format("[hdfs] hdfsListDirectory(%s) call failed: errno %d") % path.c_str() % errno).str());
     }
   }
 }
