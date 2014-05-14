@@ -29,6 +29,7 @@
 #include "source.h"
 #include "common.h"
 #include "sequential_test.h"
+#include "dbg.h"
 
 #ifdef USE_ZOOKEEPER
 #include "zk_client.h"
@@ -91,6 +92,7 @@ class scribeHandler : virtual public scribe::thrift::scribeIf,
   unsigned long getMaxConn() {
     return maxConn;
   }
+  dbg::MsgEventLogger * dbgMsgLog;
  private:
   boost::shared_ptr<apache::thrift::server::TNonblockingServer> server;
 

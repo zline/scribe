@@ -153,8 +153,9 @@ scribeHandler::scribeHandler(unsigned long int server_port, const std::string& c
   : FacebookBase("Scribe"),
     port(server_port),
     numThriftServerThreads(DEFAULT_SERVER_THREADS),
-    checkPeriod(DEFAULT_CHECK_PERIOD),
     updateStatusInterval(DEFAULT_UPDATE_STATUS_INTERVAL),
+    dbgMsgLog(0),
+    checkPeriod(DEFAULT_CHECK_PERIOD),
     configFilename(config_file),
     status(STARTING),
     statusDetails("initial state"),
@@ -462,6 +463,8 @@ ResultCode::type scribeHandler::Log(const vector<LogEntry>&  messages) {
   for (vector<LogEntry>::const_iterator msg_iter = messages.begin();
       msg_iter != messages.end();
       ++msg_iter) {
+    
+    dbgMsgLog->log("arrived", msg_iter->category, msg_iter->message);
 
     // disallow blank category from the start
     if ((*msg_iter).category.empty()) {
@@ -642,6 +645,12 @@ void scribeHandler::shutdown() {
   stopStores();
   if (! seqtestLogAccepts.empty())
     seqtestAcceptsLogger.flush(seqtestLogAccepts);
+  if (0 != dbgMsgLog)
+  {
+    dbgMsgLog->close();
+    delete dbgMsgLog;
+    dbgMsgLog = 0;
+  }
   // calling stop to allow thrift to clean up client states and exit
   server->stop();
   scribe::stopServer();
@@ -806,6 +815,14 @@ void scribeHandler::initialize() {
     seqtestAcceptsLogger.clear();
     if (! config.getString("seqtest_log_accepts", seqtestLogAccepts))
         seqtestLogAccepts = "";
+    
+    if (0 == dbgMsgLog)
+    {
+        if (config.getString("dbg_msg_logdir", temp) && ! temp.empty())
+          dbgMsgLog = new dbg::MsgEventLogger(temp);
+        else
+          dbgMsgLog = new dbg::MsgEventLogger();
+    }
     
   } catch(const std::exception& e) {
     string errormsg("Bad config - exception: ");
